@@ -6083,6 +6083,11 @@ void CL_Init (void)
 	Cmd_AddCommand ("god", NULL);	//cheats
 	Cmd_AddCommand ("give", NULL);
 	Cmd_AddCommand ("noclip", NULL);
+#ifdef MAP_DOOM
+	Cmd_AddCommand ("iddqd", NULL);	//Doom typed cheats (forwarded to the server)
+	Cmd_AddCommand ("idkfa", NULL);
+	Cmd_AddCommand ("idclip", NULL);
+#endif
 	Cmd_AddCommand ("6dof", NULL);
 	Cmd_AddCommand ("spiderpig", NULL);
 	Cmd_AddCommand ("fly", NULL);

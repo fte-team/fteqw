@@ -282,6 +282,25 @@ static void SV_God_f (void)
 		SV_ClientTPrintf (host_client, PRINT_HIGH, "godmode OFF\n");
 }
 
+#ifdef MAP_DOOM
+//Doom IDKFA: full keys, weapons, ammo and armour (iddqd -> god, idclip -> noclip are aliased below).
+static void SV_Idkfa_f (void)
+{
+	extern void Doom_GiveAll(edict_t*);
+	if (!SV_MayCheat())
+	{
+		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
+		return;
+	}
+	if (!SV_SetPlayer ())
+		return;
+	SV_LogPlayer(host_client, "idkfa cheat");
+	if (sv.world.worldmodel && sv.world.worldmodel->fromgame == fg_doom)
+		Doom_GiveAll(sv_player);
+	SV_ClientTPrintf (host_client, PRINT_HIGH, "Very Happy Ammo Added\n");
+}
+#endif
+
 
 static void SV_Noclip_f (void)
 {
@@ -332,6 +351,19 @@ static void SV_Give_f (void)
 		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
 		return;
 	}
+
+#ifdef MAP_DOOM
+	//Doom give extensions: `give all|weapons|keys` grant the Doom arsenal/keys (the Quake-style
+	//`give 2..9` below sets Quake item bits, which don't map to Doom's weapon bitmask).
+	if (sv.world.worldmodel && sv.world.worldmodel->fromgame == fg_doom && sv_player)
+	{
+		const char *what = Cmd_Argv(1);
+		extern void Doom_GiveAll(edict_t*); extern void Doom_GiveWeapons(edict_t*); extern void Doom_GiveKeys(edict_t*);
+		if (!Q_strcasecmp(what,"all"))     { Doom_GiveAll(sv_player);     Con_Printf("Given everything.\n");  return; }
+		if (!Q_strcasecmp(what,"weapons")) { Doom_GiveWeapons(sv_player); Con_Printf("Given all weapons.\n"); return; }
+		if (!Q_strcasecmp(what,"keys"))    { Doom_GiveKeys(sv_player);    Con_Printf("Given all keys.\n");    return; }
+	}
+#endif
 
 /*	if (developer.value)
 	{
@@ -3537,6 +3569,11 @@ void SV_InitOperatorCommands (void)
 		Cmd_AddCommand ("give", SV_Give_f);
 #endif
 		Cmd_AddCommandD ("noclip", SV_Noclip_f, "Disables clipping, allowing you to fly through the level.");
+#ifdef MAP_DOOM
+		Cmd_AddCommandD ("iddqd", SV_God_f, "Doom invulnerability cheat (toggles god).");
+		Cmd_AddCommandD ("idkfa", SV_Idkfa_f, "Doom cheat: all keys, weapons, ammo and armour.");
+		Cmd_AddCommandD ("idclip", SV_Noclip_f, "Doom no-clipping cheat (toggles noclip).");
+#endif
 
 		Cmd_AddCommand ("download", SV_Download_f);
 	}

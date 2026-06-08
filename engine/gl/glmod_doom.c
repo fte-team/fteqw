@@ -2933,9 +2933,10 @@ static int Doom_Rand(int lo, int hi) { return lo + (rand()%(hi-lo+1)); }
 
 //apply damage to the player, Doom-style: armour soaks a fraction (green 1/3), capped by how much
 //armour is left, and the rest comes off health. (P_DamageMobj in p_inter.c.)
+static int doom_playergod;	//set each tick from the player's FL_GODMODE; suppresses all player damage
 static void Doom_HurtPlayer(float *health, float *armor, int dmg)
 {
-	if (dmg <= 0)
+	if (dmg <= 0 || doom_playergod)
 		return;
 	if (armor && *armor > 0)
 	{
@@ -3549,10 +3550,11 @@ static void Doom_SpawnMonster(doommap_t *dm, unsigned short type, const vec3_t o
 //hitscan / launches a missile / does the archvile hellfire, else it walks closer. Movement is
 //gated on the destination sector being walkable (small step-up, enough headroom) and not blocked
 //by a wall; when the straight path is blocked it tries angled steps so it slides around obstacles.
-void Doom_TickMonsters(model_t *model, float frametime, const vec3_t playerorg, float *playerhealth, float *playerarmor)
+void Doom_TickMonsters(model_t *model, float frametime, const vec3_t playerorg, float *playerhealth, float *playerarmor, int godmode)
 {
 	doommap_t *dm = model?model->meshinfo:NULL;
 	unsigned int i, old_nummonsters;
+	doom_playergod = godmode;	//honour the `god` console command in all player-damage paths
 	if (!dm)
 		return;
 

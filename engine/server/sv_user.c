@@ -7940,8 +7940,10 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 				sv_player->v->impulse = 0;
 			}
 			else if (sv_player->v->impulse == 9)
-			{	//test cheat (IDKFA-style): all weapons + full ammo + all keys + armour
-				sv_player->v->items = DWEP_FIST|DWEP_CHAINSAW|DWEP_PISTOL|DWEP_SHOTGUN|DWEP_SSG
+			{	//test cheat (IDKFA-style): all weapons + full ammo + all keys + armour. (No SSG: it's
+				//Doom 2 only - the doom1/Ultimate Doom WADs have no SHT2 view sprite, so granting it made
+				//key 3 toggle to an invisible weapon. Pick up the real SSG in a Doom 2 map instead.)
+				sv_player->v->items = DWEP_FIST|DWEP_CHAINSAW|DWEP_PISTOL|DWEP_SHOTGUN
 					|DWEP_CHAINGUN|DWEP_ROCKET|DWEP_PLASMA|DWEP_BFG | 0x7E00 /*all 6 key bits*/;
 				sv_player->v->ammo_nails  = 200;	//bullets
 				sv_player->v->ammo_shells = 50;
@@ -7995,18 +7997,28 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 					host_client->doom_refire = 0.2f;	//out of ammo: empty click delay
 			}
 
-			//update STAT_WEAPONFRAME for the HUD animation. Frame 0 is idle.
+			//update STAT_WEAPONFRAME for the HUD weapon animation (index into wp->anim; 0 = idle/Ready).
 			{
 				int wi = (int)sv_player->v->weapon;
 				if (wi >= 0 && wi < DW_COUNT)
 				{
 					const struct doomweapon_s *wp = &doomweapons[wi];
 					int len = (int)strlen(wp->anim);
-					if (host_client->doom_refire > 0)
-					{
-						//during refire, cycle through the anim string (except the first frame if it's idle)
-						//Doom weapons often have 0.1s per frame.
-						int frame = (int)(host_client->doom_weapon_anim / 0.1f);
+					if (wi == DW_PLASMA)
+					{	//plasma: hold the fire frame (A) while firing; the "rest" frame (B) plays for a
+						//moment after you release, then back to idle (matches Doom's PLSG A fire / B refire).
+						if (sv_player->v->button0 && host_client->doom_refire > 0)
+							sv_player->v->weaponframe = 0;
+						else if (host_client->doom_weapon_anim < 0.45f)
+							sv_player->v->weaponframe = (len > 1) ? 1 : 0;
+						else
+							sv_player->v->weaponframe = 0;
+					}
+					else if (host_client->doom_refire > 0 && len > 1)
+					{	//spread the fire animation across the refire period - so e.g. the chaingun's two
+						//frames actually alternate (the old fixed 0.1s/frame left fast guns stuck on frame A).
+						float framedur = wp->refire / len;
+						int frame = (int)(host_client->doom_weapon_anim / framedur);
 						if (frame >= len) frame = len - 1;
 						sv_player->v->weaponframe = frame;
 					}

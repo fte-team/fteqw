@@ -3118,7 +3118,7 @@ void Doom_PlayerProjectile(model_t *model, const vec3_t org, float yaw, int type
 	const char *spr; float speed; int damage;
 	if (!dm) return;
 	switch(type) {
-		case 1: spr="MISLA0"; speed=900; damage=20; break; //Rocket
+		case 1: spr="MISLA1"; speed=900; damage=20; break; //Rocket (MISL flight frame is rotation 1, no A0)
 		case 2: spr="PLSSA0"; speed=700; damage=20; break; //Plasma
 		case 3: spr="BFS1A0"; speed=600; damage=100; break; //BFG
 		default: return;

@@ -7939,6 +7939,18 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 				}
 				sv_player->v->impulse = 0;
 			}
+			else if (sv_player->v->impulse == 9)
+			{	//test cheat (IDKFA-style): all weapons + full ammo + all keys + armour
+				sv_player->v->items = DWEP_FIST|DWEP_CHAINSAW|DWEP_PISTOL|DWEP_SHOTGUN|DWEP_SSG
+					|DWEP_CHAINGUN|DWEP_ROCKET|DWEP_PLASMA|DWEP_BFG | 0x7E00 /*all 6 key bits*/;
+				sv_player->v->ammo_nails  = 200;	//bullets
+				sv_player->v->ammo_shells = 50;
+				sv_player->v->ammo_rockets= 50;
+				sv_player->v->ammo_cells  = 300;
+				sv_player->v->armorvalue  = 200;
+				Doom_UpdateCurrentAmmo(sv_player);
+				sv_player->v->impulse = 0;
+			}
 
 			//fire: auto-fire while held, paced by the weapon's refire rate; consume ammo.
 			if (host_client->doom_refire > 0)

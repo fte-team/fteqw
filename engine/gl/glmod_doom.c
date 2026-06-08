@@ -957,10 +957,10 @@ static qboolean Doom_CheckPosition(doommap_t *dm, float x, float y, float radius
 		if (hitline) *hitline = floorline;
 		return false; //step too high
 	}
-	if (*tmfloorz - *tmdropoffz > 24.1f) {
-		if (hitline) *hitline = dropline ? dropline : floorline;
-		return false; //dropoff too deep
-	}
+	//NB: no dropoff check here. In vanilla the player mobj has MF_DROPOFF (info.c), so P_TryMove's
+	//"don't stand over a dropoff" test is skipped for the player - they can walk off ledges and the
+	//sides of stairs. (Only monsters, which lack MF_DROPOFF, avoid dropoffs - see Doom_MonsterBlocked.)
+	(void)dropline;
 	return true;
 }
 

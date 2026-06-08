@@ -120,12 +120,16 @@ static void Doom_SetupPlayer(edict_t *ent)
 	Doom_UpdateCurrentAmmo(ent);
 }
 
-//cheat/give helpers (used by `give all|weapons|keys` and IDKFA). No SSG: it's Doom 2 only and the
-//doom1/Ultimate Doom WADs have no SHT2 view sprite (pick the real one up in a Doom 2 map instead).
+//cheat/give helpers (used by `give all|weapons|keys` and IDKFA). The SSG is granted only when its
+//view sprite (SHT2A0) is present - i.e. running the Doom 2 IWAD (-doom2). The Doom 1 / Ultimate Doom
+//WADs have no SHT2, so granting it there would give an invisible weapon that key 3 toggles to.
 void Doom_GiveWeapons(edict_t *ent)
 {
-	ent->v->items = (int)ent->v->items | DWEP_FIST|DWEP_CHAINSAW|DWEP_PISTOL|DWEP_SHOTGUN
+	int w = DWEP_FIST|DWEP_CHAINSAW|DWEP_PISTOL|DWEP_SHOTGUN
 		|DWEP_CHAINGUN|DWEP_ROCKET|DWEP_PLASMA|DWEP_BFG;
+	if (COM_FCheckExists("sprites/SHT2A0"))
+		w |= DWEP_SSG;	//super shotgun - Doom 2 only
+	ent->v->items = (int)ent->v->items | w;
 	ent->v->ammo_nails  = 200;	//bullets
 	ent->v->ammo_shells = 50;
 	ent->v->ammo_rockets= 50;

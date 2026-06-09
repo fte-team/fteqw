@@ -258,6 +258,7 @@ BRUSH MODELS
 */
 
 struct mnode_s;
+struct q2cbrush_s;
 
 typedef struct
 {
@@ -273,37 +274,39 @@ typedef enum
 
 typedef struct {
 	//model is being purged from memory.
-	void (*PurgeModel) (struct model_s *mod);
+	void (QDECL *PurgeModel) (struct model_s *mod);
 
-	unsigned int (*PointContents)	(struct model_s *model, const vec3_t axis[3], const vec3_t p);
-//	unsigned int (*BoxContents)		(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
+	unsigned int (QDECL *PointContents)	(struct model_s *model, const vec3_t axis[3], const vec3_t p);
+//	unsigned int (QDECL *BoxContents)		(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
 
 	//deals with whatever is native for the bsp (gamecode is expected to distinguish this).
-	qboolean (*NativeTrace)		(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p1, const vec3_t p2, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace);
-	unsigned int (*NativeContents)(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
+	qboolean (QDECL *NativeTrace)		(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p1, const vec3_t p2, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace);
+	unsigned int (QDECL *NativeContents)(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
 
-	unsigned int (*FatPVS)		(struct model_s *model, const vec3_t org, pvsbuffer_t *pvsbuffer, qboolean merge);
-	qboolean (*EdictInFatPVS)	(struct model_s *model, const struct pvscache_s *edict, const qbyte *pvs, const int *areas);	//areas[0] is the count of accepted areas, if valid.
-	void (*FindTouchedLeafs)	(struct model_s *model, struct pvscache_s *ent, const vec3_t cullmins, const vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
+	unsigned int (QDECL *FatPVS)		(struct model_s *model, const vec3_t org, pvsbuffer_t *pvsbuffer, qboolean merge);
+	qboolean (QDECL *EdictInFatPVS)	(struct model_s *model, const struct pvscache_s *edict, const qbyte *pvs, const int *areas);	//areas[0] is the count of accepted areas, if valid.
+	void (QDECL *FindTouchedLeafs)	(struct model_s *model, struct pvscache_s *ent, const vec3_t cullmins, const vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
 
-	void (*LightPointValues)	(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
-	void (*StainNode)			(struct model_s *model, float *parms);
-	void (*MarkLights)			(struct dlight_s *light, dlightbitmask_t bit, struct mnode_s *node);
+	void (QDECL *LightPointValues)	(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+	void (QDECL *StainNode)			(struct model_s *model, float *parms);
+	void (QDECL *MarkLights)			(struct dlight_s *light, dlightbitmask_t bit, struct mnode_s *node);
 
-	int	(*ClusterForPoint)		(struct model_s *model, const vec3_t point, int *areaout);	//pvs index (leaf-1 for q1bsp). may be negative (ie: no pvs).
-	qbyte *(*ClusterPVS)		(struct model_s *model, int cluster, pvsbuffer_t *pvsbuffer, pvsmerge_t merge);
-	qbyte *(*ClusterPHS)		(struct model_s *model, int cluster, pvsbuffer_t *pvsbuffer);
-	qbyte *(*ClustersInSphere)	(struct model_s *model, const vec3_t point, float radius, pvsbuffer_t *pvsbuffer, const qbyte *fte_restrict unionwith);
+	int	(QDECL *ClusterForPoint)		(struct model_s *model, const vec3_t point, int *areaout);	//pvs index (leaf-1 for q1bsp). may be negative (ie: no pvs).
+	qbyte *(QDECL *ClusterPVS)		(struct model_s *model, int cluster, pvsbuffer_t *pvsbuffer, pvsmerge_t merge);
+	qbyte *(QDECL *ClusterPHS)		(struct model_s *model, int cluster, pvsbuffer_t *pvsbuffer);
+	qbyte *(QDECL *ClustersInSphere)	(struct model_s *model, const vec3_t point, float radius, pvsbuffer_t *pvsbuffer, const qbyte *fte_restrict unionwith);
 
-	size_t (*WriteAreaBits)		(struct model_s *model, qbyte *buffer, size_t maxbytes, int area, qboolean merge);	//writes a set of bits valid for a specific viewpoint's area.
-	qboolean (*AreasConnected)	(struct model_s *model, unsigned int area1, unsigned int area2);	//fails if there's no open doors
-	void (*SetAreaPortalState)	(struct model_s *model, unsigned int portal, unsigned int area1, unsigned int area2, qboolean open);	//a door moved...
-	size_t (*SaveAreaPortalBlob)(struct model_s *model, void **ptr);				//for vid_reload to not break portals. dupe the ptrbefore freeing the model.
-	size_t (*LoadAreaPortalBlob)(struct model_s *model, void *ptr, size_t size);	//for vid_reload to not break portals (has refcount info etc).
+	size_t (QDECL *WriteAreaBits)		(struct model_s *model, qbyte *buffer, size_t maxbytes, int area, qboolean merge);	//writes a set of bits valid for a specific viewpoint's area.
+	qboolean (QDECL *AreasConnected)	(struct model_s *model, unsigned int area1, unsigned int area2);	//fails if there's no open doors
+	void (QDECL *SetAreaPortalState)	(struct model_s *model, unsigned int portal, unsigned int area1, unsigned int area2, qboolean open);	//a door moved...
+	size_t (QDECL *SaveAreaPortalBlob)(struct model_s *model, void **ptr);				//for vid_reload to not break portals. dupe the ptrbefore freeing the model.
+	size_t (QDECL *LoadAreaPortalBlob)(struct model_s *model, void *ptr, size_t size);	//for vid_reload to not break portals (has refcount info etc).
 
-	void (*PrepareFrame)		(struct model_s *model, refdef_t *refdef, int area, int clusters[2], pvsbuffer_t *vis, qbyte **entvis_out, qbyte **surfvis_out);
-	void (*GenerateShadowMesh)	(struct model_s *model, dlight_t *dl, const qbyte *lvis, qbyte *truevis, void(*callback)(struct msurface_s*));
-	void (*InfoForPoint)		(struct model_s *model, vec3_t pos, int *area, int *cluster, unsigned int *contentbits);
+	void (QDECL *PrepareFrame)		(struct model_s *model, refdef_t *refdef, int area, int clusters[2], pvsbuffer_t *vis, qbyte **entvis_out, qbyte **surfvis_out);
+	void (QDECL *GenerateShadowMesh)	(struct model_s *model, dlight_t *dl, const qbyte *lvis, qbyte *truevis, void(*callback)(struct msurface_s*));
+	void (QDECL *InfoForPoint)		(struct model_s *model, vec3_t pos, int *area, int *cluster, unsigned int *contentbits);
+
+	int (QDECL *EnumerateBrushes)		(struct model_s *model, void (QDECL *callback)(struct model_s *model, struct q2cbrush_s *brush, void *user), void *user); // erysdren 2025-05-25
 } modelfuncs_t;
 
 

@@ -36,6 +36,7 @@ cvar_t plug_loaddefault = CVARD("plug_loaddefault", "1", "0: Load plugins only v
 
 extern qboolean Plug_Q3_Init(void);
 extern qboolean Plug_Bullet_Init(void);
+extern qboolean Plug_Jolt_Init(void);
 extern qboolean Plug_ODE_Init(void);
 #if defined(HAVE_CLIENT) && defined(STATIC_EZHUD)
 extern qboolean Plug_EZHud_Init(void);
@@ -49,6 +50,9 @@ static struct
 {
 #if defined(USE_INTERNAL_BULLET)
 	{"bullet_internal", Plug_Bullet_Init},
+#endif
+#if defined(USE_INTERNAL_JOLT)
+	{"jolt_internal", Plug_Jolt_Init},
 #endif
 #if defined(USE_INTERNAL_ODE)
 	{"ODE_internal", Plug_ODE_Init},

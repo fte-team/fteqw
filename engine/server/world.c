@@ -1544,6 +1544,11 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 		if (touch == clip->passedict)
 			continue;
 
+#ifdef USERBE
+		if (touch->v->movetype == MOVETYPE_PHYSICS && w->rbe_hasphysicsents && w->rbe->Trace) // erysdren 2025-05-19
+			continue;
+#endif
+
 		if (clip->type & MOVE_NOMONSTERS && touch->v->solid != SOLID_BSP)
 			continue;
 
@@ -1701,6 +1706,10 @@ static void World_ClipToLinks (world_t *w, areagridlink_t *node, moveclip_t *cli
 			continue;
 		touch->gridareasequence = areagridsequence;
 
+#ifdef USERBE
+		if (touch->v->movetype == MOVETYPE_PHYSICS && w->rbe_hasphysicsents && w->rbe->Trace) // erysdren 2025-05-19
+			continue;
+#endif
 		if (touch->v->solid == SOLID_NOT)
 			continue;
 		if (touch == clip->passedict)
@@ -2681,12 +2690,12 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 				}
 			}
 		}
-		/*else if (w->rbe_hasphysicsents && passedict->rbe.body.body)
-		{
-			w->rbe->Trace(w, clip.passedict, clip.start, clip.end, &clip.trace);
-		}*/
 		else
 		{
+#ifdef USERBE
+			if (w->rbe_hasphysicsents && passedict->rbe.body.body && w->rbe->Trace)
+				w->rbe->Trace(w, clip.passedict, clip.start, clip.end, &clip.trace);
+#endif
 #ifdef USEAREAGRID
 			World_ClipToAllLinks (w, &clip );
 #else

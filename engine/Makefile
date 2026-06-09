@@ -98,6 +98,7 @@ SPEEXVER=1.2.0
 SPEEXDSPVER=1.2.0
 FREETYPEVER=2.10.1
 BULLETVER=2.87
+JOLTVER=5.5.0
 OPENSSLVER=3.0.1
 
 #cygwin's make's paths confuses non-cygwin things
@@ -170,6 +171,10 @@ endif
 ifneq (,$(findstring DLINK_INTERNAL_BULLET,$(FTE_CONFIG_EXTRA)))
 	#bullet plugin will be built into the exe itself
     INTERNAL_BULLET=1
+endif
+ifneq (,$(findstring DLINK_INTERNAL_JOLT,$(FTE_CONFIG_EXTRA)))
+	#jolt plugin will be built into the exe itself
+	INTERNAL_JOLT=1
 endif
 ifneq (,$(findstring DLINK_EZHUD,$(FTE_CONFIG_EXTRA)))
     LINK_EZHUD=1
@@ -1095,6 +1100,13 @@ ifeq (1,$(strip $(INTERNAL_BULLET)))
     COMMONLDDEPS+=-lBulletDynamics -lBulletCollision -lLinearMath
     LDCC=$(CXX)
     MAKELIBS+=libs-$(ARCH)/libBulletDynamics.a
+endif
+ifeq (1,$(INTERNAL_JOLT))
+    COMMON_OBJS+=com_phys_jolt.o
+    ALL_CFLAGS+=-I$(ARCHLIBS)/JoltPhysics-$(JOLTVER)/ -DUSE_INTERNAL_JOLT
+    COMMONLDDEPS+=-lJolt
+    LDCC=$(CXX)
+    MAKELIBS+=libs-$(ARCH)/libJolt.a
 endif
 ifeq (1,$(LINK_EZHUD))
     VPATH := $(VPATH) : $(BASE_DIR)/../plugins/ezhud
@@ -2361,6 +2373,10 @@ else
 	EMSCRIPTENPATH=$(PATH)
 endif
 
+ifeq ($(findstring web,$(FTE_TARGET)),web)
+	DO_CMAKE+=-DCMAKE_TOOLCHAIN_FILE="${EMSCRIPTENROOT}/cmake/Modules/Platform/Emscripten.cmake"
+endif
+
 web-rel:
 	@PATH="$(EMSCRIPTENPATH)" $(MAKE) makelibs FTE_TARGET=web CC="$(EMCC)" && PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-rel FTE_TARGET=web CC="$(EMCC)"
 	@cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
@@ -2545,6 +2561,10 @@ libs-$(ARCH)/libfreetype.a libs-$(ARCH)/ft2build.h: libs-$(ARCH)/libpng.a libs-$
 libs-$(ARCH)/libBulletDynamics.a:
 	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz -O bullet3-$(BULLETVER).tar.gz
 	test -f libs-$(ARCH)/libBulletDynamics.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../bullet3-$(BULLETVER).tar.gz && cd bullet3-$(BULLETVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) $(DO_CMAKE) . && $(TOOLOVERRIDES) $(MAKE) LinearMath BulletDynamics BulletCollision && cp src/LinearMath/libLinearMath.a src/BulletDynamics/libBulletDynamics.a src/BulletCollision/libBulletCollision.a src/btBulletCollisionCommon.h src/btBulletDynamicsCommon.h ..)
+
+libs-$(ARCH)/libJolt.a:
+	test -f JoltPhysics-$(JOLTVER).tar.gz || wget https://github.com/jrouwe/JoltPhysics/archive/refs/tags/v$(JOLTVER).tar.gz -O JoltPhysics-$(JOLTVER).tar.gz
+	test -f libs-$(ARCH)/libJolt.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../JoltPhysics-$(JOLTVER).tar.gz && cd JoltPhysics-$(JOLTVER)/Build/ && mkdir -p Build && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) $(DO_CMAKE) -S. -BBuild -DENABLE_OBJECT_STREAM=OFF -DENABLE_INSTALL=OFF && $(TOOLOVERRIDES) $(MAKE) -CBuild Jolt && cp Build/libJolt.a ../..)
 
 libs-$(ARCH)/vulkan/vulkan.h:
 	test -f vulkan-sdk-$(VULKANVER).tar.gz || wget https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-$(VULKANVER).tar.gz  

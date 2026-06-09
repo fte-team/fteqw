@@ -66,6 +66,7 @@ static int CM_PointCluster (model_t *mod, const vec3_t p, int *area);
 static void CM_InfoForPoint (struct model_s *mod, vec3_t pos, int *area, int *cluster, unsigned int *contentbits);
 struct cminfo_s;
 
+static int CM_EnumerateBrushes(model_t *model, void (*callback)(model_t *model, q2cbrush_t *brush, void *user), void *user);;
 
 void CM_Init(void);
 
@@ -4645,6 +4646,7 @@ static void CM_BuildBIH(model_t *mod, int submodel)
 	mod->funcs.NativeTrace			= CM_NativeTrace;
 	mod->funcs.NativeContents		= CM_NativeContents;
 	mod->funcs.PointContents		= Q2BSP_PointContents;
+	//mod->funcs.EnumerateBrushes		= CM_EnumerateBrushes;
 	if (!q3bsp_bihtraces.ival)
 		return;	//skip this. fall back on other stuff.
 
@@ -6961,6 +6963,24 @@ static qboolean CM_NativeTrace(model_t *model, int forcehullnum, const framestat
 #endif
 	}
 	return trace->fraction != 1;
+}
+
+static int CM_EnumerateBrushes(model_t *model, void (*callback)(model_t *model, q2cbrush_t *brush, void *user), void *user)
+{
+	cminfo_t *prv;
+	int i;
+
+	// sanity check
+	if (!model)
+		return 0;
+
+	prv = (cminfo_t *)model->meshinfo;
+
+	if (callback)
+		for (i = 0; i < prv->numbrushes; i++)
+			callback(model, &prv->brushes[i], user);
+
+	return prv->numbrushes;
 }
 
 /*

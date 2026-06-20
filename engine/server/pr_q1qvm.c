@@ -1957,6 +1957,100 @@ static qintptr_t QVM_GetExtField (void *offset, quintptr_t mask, const qintptr_t
 	}
 	return 0;
 }
+// Prevent mods from hardcoding fields
+static unsigned int QVM_ExtFieldCookie(void)
+{
+	static unsigned int cookie = 0;
+	while (cookie == 0)
+		cookie = ((unsigned int)(rand() & 0xFFFF)) << 16;
+	return cookie;
+}
+static qboolean QVM_ValidateExtFieldToken(unsigned int token, unsigned int *offset)
+{
+	unsigned int cookie = QVM_ExtFieldCookie();
+	*offset = token & ~cookie;
+	return (token & cookie) == cookie;
+}
+//returns a byte offset into extentvars_t (mirrors QVM_FindExtField, but in bytes rather than int-indexes).
+static int QVM_FindExtFieldOffset(const char *fname)
+{
+	extentvars_t *xv = NULL;
+#define comfieldfloat(name,desc) if (!strcmp(fname, #name)) return (int)((char*)&xv->name - (char*)xv);
+#define comfieldint(name,desc) if (!strcmp(fname, #name)) return (int)((char*)&xv->name - (char*)xv);
+#define comfieldvector(name,desc) if (!strcmp(fname, #name)) return (int)((char*)&xv->name - (char*)xv);
+#define comfieldentity(name,desc) if (!strcmp(fname, #name)) return (int)((char*)&xv->name - (char*)xv);
+#define comfieldstring(name,desc) if (!strcmp(fname, #name)) return (int)((char*)&xv->name - (char*)xv);
+#define comfieldfunction(name, typestr,desc) if (!strcmp(fname, #name)) return (int)((char*)&xv->name - (char*)xv);
+comextqcfields
+svextqcfields
+#undef comfieldfloat
+#undef comfieldint
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
+	return -1;	//unsupported
+}
+static qintptr_t QVM_MapExtFieldPtr (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *fname = VM_POINTER(arg[0]);
+	int o;
+	if (fname && (o = QVM_FindExtFieldOffset(fname)) >= 0)
+		return (unsigned int)o | QVM_ExtFieldCookie();
+	return 0;	//unknown field
+}
+static qintptr_t QVM_SetExtFieldPtr (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	unsigned int entnum = ((char*)VM_POINTER(arg[0]) - (char*)evars)/sv.world.edict_size;
+	void *src = VM_POINTER(arg[2]);
+	unsigned int field_ref;
+	size_t size = VM_LONG(arg[3]);
+
+	if (!QVM_ValidateExtFieldToken(VM_LONG(arg[1]), &field_ref))
+	{
+		Con_Printf("SetExtFieldPtr: Corrupt field reference!\n");
+		return 0;
+	}
+	if (field_ref + size > sizeof(extentvars_t))
+	{
+		Con_Printf("SetExtFieldPtr: Field reference out of bounds!\n");
+		return 0;
+	}
+	VALIDATEPOINTER(arg[2], size);
+
+	if (entnum < q1qvmprogfuncs.edicttable_length && q1qvmprogfuncs.edicttable[entnum])
+	{
+		memcpy((qbyte*)q1qvmprogfuncs.edicttable[entnum]->xv + field_ref, src, size);
+		return 1;
+	}
+	return 0;
+}
+static qintptr_t QVM_GetExtFieldPtr (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	unsigned int entnum = ((char*)VM_POINTER(arg[0]) - (char*)evars)/sv.world.edict_size;
+	void *dst = VM_POINTER(arg[2]);
+	unsigned int field_ref;
+	size_t size = VM_LONG(arg[3]);
+
+	if (!QVM_ValidateExtFieldToken(VM_LONG(arg[1]), &field_ref))
+	{
+		Con_Printf("GetExtFieldPtr: Corrupt field reference!\n");
+		return 0;
+	}
+	if (field_ref + size > sizeof(extentvars_t))
+	{
+		Con_Printf("GetExtFieldPtr: Field reference out of bounds!\n");
+		return 0;
+	}
+	VALIDATEPOINTER(arg[2], size);
+
+	if (entnum < q1qvmprogfuncs.edicttable_length && q1qvmprogfuncs.edicttable[entnum])
+	{
+		memcpy(dst, (qbyte*)q1qvmprogfuncs.edicttable[entnum]->xv + field_ref, size);
+		return 1;
+	}
+	return 0;
+}
 
 #ifdef WEBCLIENT
 static void QVM_uri_query_callback(struct dl_download *dl)
@@ -2223,6 +2317,9 @@ struct
 {
 	{"SetExtField",			QVM_SetExtField},
 	{"GetExtField",			QVM_GetExtField},
+	{"MapExtFieldPtr",		QVM_MapExtFieldPtr},
+	{"SetExtFieldPtr",		QVM_SetExtFieldPtr},
+	{"GetExtFieldPtr",		QVM_GetExtFieldPtr},
 	{"ChangeLevelHub",		QVM_ChangeLevelHub},	//with start spot
 #ifdef WEBCLIENT
 	{"URI_Query",			QVM_uri_query},

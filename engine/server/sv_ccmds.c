@@ -513,7 +513,7 @@ static int QDECL CompleteMapListEnt (const char *name, qofs_t flags, time_t mtim
 {
 	struct xcommandargcompletioncb_s *ctx = parm;
 	char stripped[64];
-	char *modifier = strchr(name, '#');
+	char *modifier = (char*)strchr(name, '#');
 	if (!modifier)	//skip non-modifiers.
 		return true;
 	if (modifier-name+4 > sizeof(stripped))	//too long...

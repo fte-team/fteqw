@@ -5618,7 +5618,7 @@ static int QDECL CLQ2_EnumeratedSkin(const char *name, qofs_t size, time_t mtime
 	if (!player->skinid)
 	{
 		char *e;
-		e = strstr(name, "_i.");
+		e = (char*)strstr(name, "_i.");
 		if (e)
 		{
 			*e = 0;

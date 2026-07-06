@@ -483,7 +483,7 @@ static part_type_t *P_GetParticleType(const char *config, const char *name)
 	part_type_t *ptype;
 	part_type_t *oldlist = part_type;
 	char cfgbuf[MAX_QPATH];
-	char *dot = strchr(name, '.');
+	char *dot = (char*)strchr(name, '.');
 	if (dot && (dot - name) < MAX_QPATH-1)
 	{
 		config = cfgbuf;
@@ -606,7 +606,7 @@ static int PScript_FindParticleType(const char *fullname)
 	char cfg[MAX_QPATH];
 	char *dot;
 	const char *name = fullname;
-	dot = strchr(name, '.');
+	dot = (char*)strchr(name, '.');
 	if (dot && (dot - name) < MAX_QPATH-1)
 	{
 		memcpy(cfg, name, dot - name);

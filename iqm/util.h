@@ -50,11 +50,11 @@ inline void operator delete(void *p) { if(p) free(p); }
 inline void operator delete[](void *p) { if(p) free(p); }
 inline void operator delete(void *p, size_t sz) { if(p) free(p); }
 inline void operator delete[](void *p, size_t sz) { if(p) free(p); }
-*/
 inline void *operator new(size_t, void *p) { return p; }
 inline void *operator new[](size_t, void *p) { return p; }
 inline void operator delete(void *, void *) {}
 inline void operator delete[](void *, void *) {}
+*/
 
 #ifdef swap
 #undef swap

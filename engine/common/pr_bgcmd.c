@@ -504,7 +504,7 @@ int PR_Print (qboolean dev, const char *msg)
 
 	while (*msg)
 	{
-		nl = strchr(msg, '\n');
+		nl = (char*)strchr(msg, '\n');
 		if (nl)
 			*nl = 0;
 		*file = 0;
@@ -523,7 +523,7 @@ int PR_Print (qboolean dev, const char *msg)
 		}
 #endif
 
-		ls = strchr(msg, ':');
+		ls = (char*)strchr(msg, ':');
 		if (ls)
 		{
 			ms = strchr(ls+1, ':');

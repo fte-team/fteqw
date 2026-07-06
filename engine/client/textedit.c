@@ -101,14 +101,14 @@ int Con_Editor_Evaluate(console_t *con, const char *evalstring)
 {
 	char *eq, *term;
 
-	eq = strchr(evalstring, '=');
+	eq = (char*)strchr(evalstring, '=');
 	if (eq)
 	{
-		term = strchr(eq, ';');
+		term = (char*)strchr(eq, ';');
 		if (!term)
-			term = strchr(eq, '\n');
+			term = (char*)strchr(eq, '\n');
 		if (!term)
-			term = strchr(eq, '\r');
+			term = (char*)strchr(eq, '\r');
 		if (term)
 		{
 			*term = '\0';
@@ -248,7 +248,7 @@ static void Con_Editor_DoPaste(void *ctx, const char *utf8)
 			Con_Editor_DeleteSelection(con);
 		for(s = utf8; ; )
 		{
-			nl = strchr(s, '\n');
+			nl = (char*)strchr(s, '\n');
 			if (nl)
 				*nl = 0;
 			end = COM_ParseFunString(CON_WHITEMASK, s, buffer, sizeof(buffer), PFS_FORCEUTF8);

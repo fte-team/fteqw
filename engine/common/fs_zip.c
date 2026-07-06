@@ -88,7 +88,7 @@ void *zlib_handle;
 # endif
 
 #ifndef Z_U4
-#define z_crc_t uLongf
+#define z_crc_t uint32_t
 #endif
 
 //#pragma comment(lib, MSVCLIBSPATH "zlib.lib")

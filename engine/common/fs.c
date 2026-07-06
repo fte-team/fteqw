@@ -3578,7 +3578,7 @@ searchpathfuncs_t *COM_EnumerateFilesPackage (char *matches, const char *package
 		if (!package)
 			return NULL;
 
-		sl = strchr(package, '/');
+		sl = (char*)strchr(package, '/');
 		if (sl)
 		{	//try to open the named package.
 			*sl = 0;
@@ -4430,7 +4430,7 @@ static qboolean FS_FixupFileCase(char *out, size_t outsize, const char *basedir,
 	if (strchr(entry, '/')) for(;;)
 	{
 		parm.match = entry;
-		s = strchr(entry, '/');
+		s = (char*)strchr(entry, '/');
 		if (s)
 		{
 			parm.isdir = true;
@@ -4485,12 +4485,12 @@ static searchpath_t *FS_AddSingleGameDirectory (searchpath_t **oldpaths, const c
 
 	if (!(flags & SPF_PRIVATE))
 	{
-		if ((p = strrchr(dir, '/')) != NULL)
+		if ((p = (char*)strrchr(dir, '/')) != NULL)
 			Q_strncpyz(pubgamedirfile, ++p, sizeof(pubgamedirfile));
 		else
 			Q_strncpyz(pubgamedirfile, dir, sizeof(pubgamedirfile));
 	}
-	if ((p = strrchr(dir, '/')) != NULL)
+	if ((p = (char*)strrchr(dir, '/')) != NULL)
 		Q_strncpyz(gamedirfile, ++p, sizeof(gamedirfile));
 	else
 		Q_strncpyz(gamedirfile, dir, sizeof(gamedirfile));
@@ -6357,7 +6357,7 @@ static int FS_IdentifyDefaultGame(char *newbase, int sizeof_newbase, qboolean fi
 		{
 			if (!gamemode_info[i].exename)
 				continue;
-			ev = strstr(v0, gamemode_info[i].exename);
+			ev = (char*)strstr(v0, gamemode_info[i].exename);
 			if (ev && (!strchr(ev, '\\') && !strchr(ev, '/')))
 				gamenum = i;
 		}
@@ -6420,7 +6420,7 @@ static ftemanifest_t *FS_GenerateLegacyManifest(int game, const char *basedir)
 		for (cexec = gamemode_info[game].customexec; cexec && cexec[0] == '/' && cexec[1] == '/'; )
 		{
 			char line[256];
-			char *e = strchr(cexec, '\n');
+			const char *e = strchr(cexec, '\n');
 			if (!e)
 				break;
 			Q_strncpyz(line, cexec+2, min(e-(cexec+2)+1, sizeof(line)));
@@ -8388,7 +8388,7 @@ static void COM_InitHomedir(ftemanifest_t *man)
 	//assume the home directory is the working directory.
 	*com_homepath = '\0';
 
-	if (man && (strstr(man->installation, "..") || strchr(man->installation, '/') || strchr(man->installation, '\\')))
+	if (man && ((char*)strstr(man->installation, "..") || strchr(man->installation, '/') || strchr(man->installation, '\\')))
 		com_homepathusable = false; //don't even try to generate a relative homedir.
 	else
 		com_homepathusable = FS_GetBestHomeDir(man);

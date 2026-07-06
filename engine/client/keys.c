@@ -1434,7 +1434,7 @@ void Key_EmojiCompletion_c(int argn, const char *partial, struct xcommandargcomp
 
 const char *Key_Demoji(char *buffer, size_t buffersize, const char *in)
 {
-	char *estart = strchr(in, ':');
+	char *estart = (char*)strchr(in, ':');
 	size_t ofs;
 	char *out = buffer, *outend = buffer+buffersize-1;
 	if (!estart)
@@ -1467,11 +1467,11 @@ const char *Key_Demoji(char *buffer, size_t buffersize, const char *in)
 			in += emojidata[ofs+0];
 			memcpy(out, &emojidata[ofs+2]+emojidata[ofs+0], emojidata[ofs+1]);
 			out += emojidata[ofs+1];
-			estart = strchr(in, ':');
+			estart = (char*)strchr(in, ':');
 		}
 		else
 		{
-			estart = strchr(in+1, ':');
+			estart = (char*)strchr(in+1, ':');
 		}
 	}
 	while (*in && out < outend)

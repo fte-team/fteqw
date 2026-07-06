@@ -905,7 +905,7 @@ static void QCC_DumpLocalisation (const char *outputname)
 
 				if (def->filen)
 				{	//strip any extra macro info there...
-					char *c = strchr(def->filen, ':');
+					char *c = (char*)strchr(def->filen, ':');
 					if (c && (c[1] < '0' || c[1] > '9'))	//don't get fooled by windows paths...
 						c = strchr(c+1, ':');
 					if (c)

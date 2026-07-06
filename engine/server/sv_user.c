@@ -3286,7 +3286,7 @@ int SV_FindRemotePackage(const char *package, char *url, size_t urlsize)
 
 	//filter out the gamedir, so different gamedirs can have different sets of urls.
 	//(useful for eg pakN.pak, if it were not blocked elsewhere)
-	char *sep = strchr(package, '/');
+	char *sep = (char*)strchr(package, '/');
 	if (sep && sep-package<sizeof(line))
 	{
 		sep++;

@@ -7,6 +7,8 @@
 
 #include "vr.h"
 
+#include <limits.h>	//for UINT_MAX
+
 extern qboolean vid_isfullscreen;
 
 cvar_t vk_stagingbuffers						= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u(niform), e(lements), v(ertex), 0(none).");

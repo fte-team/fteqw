@@ -1572,6 +1572,8 @@ static qintptr_t QVM_Find (void *offset, quintptr_t mask, const qintptr_t *arg)
 	for (i = first+1; i < sv.world.num_edicts; i++)
 	{
 		e = q1qvmprogfuncs.edicttable[i];
+		if (ED_ISFREE(e))
+			continue;
 		if (stringishacky)
 			field = VM_POINTER(*(quintptr_t*)((char*)e->v + ofs));
 		else

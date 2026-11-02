@@ -646,7 +646,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				return NULL;	//don't allow this surface to be drawn.
 			for (i = 0; i < sk->nummappings; i++)
 			{
-				if (!strcmp(sk->mappings[i].surface, inf->surfacename))
+				if (!strcasecmp(sk->mappings[i].surface, inf->surfacename))
 				{
 					*forcedtex = &sk->mappings[i].texnums;
 					return sk->mappings[i].shader;

@@ -44,6 +44,10 @@ kwin unstable protocools:
 
 extern cvar_t vid_conautoscale;
 
+// shutdown safeguard
+// fixes segmentation fault at WL_DeInit() inside pwl_display_dispatch()
+static qboolean wl_shutting_down = false;
+
 //protocol names...
 #define WP_POINTER_CONSTRAINTS_NAME "zwp_pointer_constraints_v1"
 #define WP_RELATIVE_POINTER_MANAGER_NAME "zwp_relative_pointer_manager_v1"
@@ -576,6 +580,10 @@ static const struct xdg_surface_listener myxdg_surface_listener =
 
 void xdg_toplevel_handle_configure(void *data, struct xdg_toplevel *xdg_toplevel, int32_t width, int32_t height, struct wl_array *states)
 {
+	// safeguard: when shutting down EGL, make sure to not handle anything
+	if (wl_shutting_down)
+		return;
+
 	if (!width || !height)
 	{
 		width = w.truewidth;
@@ -1583,6 +1591,7 @@ static qboolean WL_Init (rendererstate_t *info, unsigned char *palette)
 
 		break;
 #endif
+	wl_shutting_down = false; // reset shutdown safeguard
 #ifdef VKQUAKE
 	case QR_VULKAN:
 		#ifdef VK_NO_PROTOTYPES
@@ -1786,10 +1795,15 @@ pwl_display_roundtrip(w.display);
 }
 static void WL_DeInit(void)
 {
+	wl_shutting_down = true; // enables safeguard
 #if defined(GLQUAKE) && defined(USE_EGL)
 	EGL_Shutdown();
 	if (w.enwindow)
+	{
 		pwl_egl_window_destroy(w.enwindow);
+		// Make sure w.enwindow is set to NULL to prevent callback calls
+		w.enwindow = NULL;
+	}
 	EGL_UnloadLibrary();
 	GL_ForgetPointers();
 #endif

@@ -6981,8 +6981,8 @@ void PR_ClearThreads(pubprogfuncs_t *prinst)
 {
 	world_t *world;
 	qcstate_t *state, *next;
-	if (!prinst)
-		return; //shoo!
+	if (!prinst || !prinst->parms)
+		return; //shoo! //the q1qvm has no qclib externs, so there are no threads to clear
 	world = prinst->parms->user;
 	state = world->qcthreads;
 	world->qcthreads = NULL;

@@ -563,7 +563,7 @@ static void DOM_ButtonEvent(unsigned int devid, int down, int button)
 		while(button > 0)
 		{
 			IN_KeyEvent(devid, true, K_MWHEELDOWN, 0);
-			IN_KeyEvent(devid, false, K_MWHEELUP, 0);
+			IN_KeyEvent(devid, false, K_MWHEELDOWN, 0);
 			button -= 1;
 		}
 	}

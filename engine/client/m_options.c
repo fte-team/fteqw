@@ -1045,15 +1045,16 @@ const char *presetexec[] =
 	"r_part_classic_opaque 0;"
 	"gl_load24bit 1;"
 	"r_replacemodels \"md3 md2 md5mesh\";"
-	"r_coronas 1;"
-	"r_dynamic 1;"
+	"r_coronas 0;"
+	"r_dynamic 0;"
 	"r_softwarebanding 0;"
 	"d_mipcap 0 1000;"
 	"gl_affinemodels 0;"
 	"r_lerpmuzzlehack 1;"
-	"gl_texturemode ln;"
-	"gl_texturemode2d l;"
-	"cl_sbar 0;"
+	"gl_texturemode nl;"
+	"gl_texturemode2d n;"
+	"gl_texture_anisotropic_filtering 0;"
+	"cl_sbar 2;"
 	"v_viewmodel_quake 0;"	//don't move the gun around weirdly.
 //	"cvarreset sv_nqplayerphysics;"
 	"cl_demoreel 0;"
@@ -1787,7 +1788,7 @@ void M_Menu_Textures_f (void)
 	};
 
 	extern cvar_t gl_load24bit, gl_specular, gl_compress, gl_picmip, gl_picmip2d, gl_max_size, r_drawflat, r_glsl_offsetmapping;
-	extern cvar_t gl_texture_anisotropic_filtering, gl_texturemode, gl_texturemode2d, gl_mipcap;
+	extern cvar_t gl_texture_anisotropic_filtering, gl_texturemode, gl_texturemode2d, gl_mipcap, r_font_linear;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -1797,6 +1798,7 @@ void M_Menu_Textures_f (void)
 		MB_CHECKBOXCVAR("Simple Texturing", r_drawflat, 0),
 		MB_COMBOCVAR("3D Filter Mode", gl_texturemode, texturefilternames, texturefiltervalues, "Chooses the texture filtering method used for 3D objects."),
 		MB_COMBOCVAR("2D Filter Mode", gl_texturemode2d, texture2dfilternames, texture2dfiltervalues, "Chooses the texture filtering method used for HUD, menus, and other 2D assets."),
+		MB_CHECKBOXCVAR("Font filtering", r_font_linear, 0),
 		MB_COMBOCVAR("Anisotropy", gl_texture_anisotropic_filtering, anisotropylevels, anisotropyvalues, NULL),
 		MB_SPACING(4),
 #ifdef GLQUAKE

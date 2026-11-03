@@ -87,7 +87,8 @@ void *zlib_handle;
 
 # endif
 
-#ifndef Z_U4
+//zlib-ng-compat typedefs z_crc_t as uint32_t without defining Z_U4
+#if !defined(Z_U4) && !defined(ZLIBNG_VERNUM)
 #define z_crc_t uLongf
 #endif
 

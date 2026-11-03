@@ -417,7 +417,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 
 		if (com_tokentype == TTP_LINEENDING || !skintext)
 			continue;
-		nl = strchr(skintext, '\n');
+		nl = (char*)strchr(skintext, '\n');
 		if (!nl)
 			skintext = skintext+strlen(skintext);
 		else

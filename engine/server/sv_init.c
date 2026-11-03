@@ -1033,7 +1033,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		}
 		if (bestdepth == FDEPTH_MISSING)
 		{
-			mod = strchr(server, '#');
+			mod = (char*)strchr(server, '#');
 			if (mod)
 			{
 				*mod = 0;

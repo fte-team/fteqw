@@ -2604,7 +2604,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 		start = fontfilename;
 		for(;;)
 		{
-			char *end = strchr(start, ',');
+			char *end = (char*)strchr(start, ',');
 			if (end)
 				*end = 0;
 

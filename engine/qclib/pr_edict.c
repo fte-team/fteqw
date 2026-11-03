@@ -472,7 +472,7 @@ mfunction_t *ED_FindFunction (progfuncs_t *progfuncs, const char *name, progsnum
 
 	if (prnum)
 	{
-		sep = strchr(name, ':');
+		sep = (char*)strchr(name, ':');
 		if (sep)
 		{
 			pnum = atoi(name);

@@ -2357,7 +2357,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 
 		host = Z_StrDup(value);
 
-		s = strchr(host, '?');
+		s = (char*)strchr(host, '?');
 		for (;s;s=next)
 		{
 			*s++ = 0;

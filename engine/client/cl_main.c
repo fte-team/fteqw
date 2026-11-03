@@ -1645,7 +1645,7 @@ static void CL_BeginServerConnect(char *chain, int port, qboolean noproxy, enum 
 		}
 		else
 		{	//not some '/foo' name, not rtc:// either...
-			char *sl = strchr(schemeend+3, '/');
+			char *sl = (char*)strchr(schemeend+3, '/');
 			if (sl)
 			{
 				if (!strncmp(sl, "/observe", 8))
@@ -5124,7 +5124,7 @@ static void CL_Curl_f(void)
 		localterse = strrchr(arg, '/');
 		if (!localterse)
 			localterse = arg;
-		t = strchr(localterse, '?');
+		t = (char*)strchr(localterse, '?');
 		if (t)
 			*t = 0;
 		if (t-localterse < countof(localnametmp))

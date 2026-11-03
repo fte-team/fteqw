@@ -3266,7 +3266,7 @@ static qboolean JCL_NamePrep(const char *in, size_t insize, char *out, size_t ou
 
 static qboolean JCL_NameResourcePrep(const char *in, char *nout, size_t noutsize, char **res)
 {
-	char *resstart = strchr(in, '/');
+	char *resstart = (char*)strchr(in, '/');
 	if (resstart)
 	{
 		*res = resstart+1;

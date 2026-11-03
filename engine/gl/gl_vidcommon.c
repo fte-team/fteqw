@@ -514,7 +514,7 @@ static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 	unsigned int mesaver[3];
 	memset(&gl_config, 0, sizeof(gl_config));
 
-	GL_ParseVersionTupple(strstr(gl_version, " Mesa "), 6, mesaver);
+	GL_ParseVersionTupple(strstr((char*)gl_version, " Mesa "), 6, mesaver);
 
 	if (!strncmp(gl_version, "WebGL", 5))
 	{
@@ -2197,7 +2197,7 @@ static qboolean GLSlang_GenerateIncludes(struct glslparts_s *glsl, const char *s
 	int i;
 	char *incline, *inc;
 	char incname[256];
-	while((incline=strstr(shadersource, "#include")))
+	while((incline=(char*)strstr(shadersource, "#include")))
 	{
 		/*emit up to the include*/
 		if (incline - shadersource)

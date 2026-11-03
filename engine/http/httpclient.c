@@ -852,7 +852,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 	con = malloc(sizeof(*con));
 	memset(con, 0, sizeof(*con));
 
-	slash = strchr(url, '/');
+	slash = (char*)strchr(url, '/');
 	if (!slash)
 	{
 		Q_strncpyz(con->server, url, sizeof(con->server));

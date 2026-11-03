@@ -896,7 +896,7 @@ static int QDECL DemoAddItem(const char *filename, qofs_t size, time_t modified,
 
 	char *i;
 
-	i = strchr(filename+menu->pathlen, '/');
+	i = (char*)strchr(filename+menu->pathlen, '/');
 	if (i == NULL)
 	{
 		const char *ext = COM_GetFileExtension(filename, NULL);

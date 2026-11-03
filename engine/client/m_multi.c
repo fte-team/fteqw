@@ -653,7 +653,7 @@ static int QDECL M_Menu_GameOptions_AddMap(const char *fname, qofs_t fsize, time
 	fname += 5;
 	if (fname[0] == 'b' && fname[1] == '_')
 		return true;	//stoopid ammo boxes.
-	ext = strrchr(fname, '.');
+	ext = (char*)strrchr(fname, '.');
 	if (ext && !strcmp(ext, ".bsp") && ext-fname<sizeof(trimmedfname))
 	{
 		memcpy(trimmedfname, fname, ext-fname);

@@ -743,7 +743,7 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, const char *key, eval_t **result, 
 		return true;
 	}
 
-	c = strchr(key, '.');
+	c = (char*)strchr(key, '.');
 	if (c) *c = '\0';
 	def = ED_FindLocalOrGlobal(progfuncs, key, &val);
 	if (!def)
@@ -779,7 +779,7 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, const char *key, eval_t **result, 
 	}
 
 	//go through ent vars
-	c = strchr(key, '.');
+	c = (char*)strchr(key, '.');
 	while(c)
 	{
 		c2 = c+1;
@@ -951,7 +951,7 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, const char *key)
 		return buf;
 	}
 
-	assignment = strchr(key, '=');
+	assignment = (char*)strchr(key, '=');
 	if (assignment)
 		*assignment = '\0';
 

@@ -315,7 +315,7 @@ skippedcomment:
 		return NULL;	//should never happen
 	}
 
-	tagend = strchr(buffer+pos, '>');
+	tagend = (char*)strchr(buffer+pos, '>');
 	if (!tagend)
 	{
 		Con_Printf("Missing close bracket\n");
@@ -484,7 +484,7 @@ skippedcomment:
 			{	//the end of this block
 				//FIXME: check name
 
-				tagend = strchr(buffer+pos, '>');
+				tagend = (char*)strchr(buffer+pos, '>');
 				if (!tagend)
 				{
 					Con_Printf("No close tag\n");

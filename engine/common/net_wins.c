@@ -1448,7 +1448,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 
 		if (*s == '[')
 		{
-			port = strstr(s, "]");
+			port = (char*)strstr(s, "]");
 			if (!port)
 				error = EAI_NONAME;
 			else
@@ -1467,7 +1467,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 			udp6hint.ai_flags |= AI_ADDRCONFIG;	//don't return ipv6 if we can't send to ipv6 hosts
 #endif
 
-			port = strrchr(s, ':');
+			port = (char*)strrchr(s, ':');
 
 			if (port)
 			{
@@ -1885,11 +1885,11 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 		}
 	}
 
-	args = strchr(s, '?');
+	args = (char*)strchr(s, '?');
 	if (args)
 		*args=0;
 
-	path = strchr(s, '/');
+	path = (char*)strchr(s, '/');
 #if !defined(HAVE_WEBSOCKCL) && defined(SUPPORT_ICE)
 	if (path == s)
 	{
@@ -2049,7 +2049,7 @@ int ParsePartialIP(const char *s, netadr_t *a)
 
 	//multiple colons == ipv6
 	//single colon = ipv4:port
-	colon = strchr(s, ':');
+	colon = (char*)strchr(s, ':');
 	if (colon && strchr(colon+1, ':'))
 	{
 		qbyte *address = a->address.ip6;
@@ -2172,7 +2172,7 @@ qboolean NET_StringToAdrMasked (const char *s, qboolean allowdns, netadr_t *a, n
 	char *spoint;
 	int i;
 
-	spoint = strchr(s, '/');
+	spoint = (char*)strchr(s, '/');
 
 	if (spoint)
 	{
@@ -2233,7 +2233,7 @@ qboolean NET_StringToAdr_NoDNS(const char *address, int port, netadr_t *out)
 	int peerbits;
 	if (*address == '[')
 	{
-		char *close = strchr(address+1, ']');
+		char *close = (char*)strchr(address+1, ']');
 		if (close)
 			*close = 0;
 		peerbits = NET_StringToAdr_NoDNS(address+1, 0, out);
@@ -8103,8 +8103,8 @@ ftenet_generic_connection_t *FTENET_TCP_EstablishConnection(ftenet_connections_t
 				const char *host = strstr(address, "://");
 				const char *port;
 				host = host?host+3:address;
-				port = strchr(host, ':');
-				resource = strchr(host, '/');
+				port = (char*)strchr(host, ':');
+				resource = (char*)strchr(host, '/');
 				if (!port)
 					port = resource;
 				if (!port)

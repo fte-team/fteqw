@@ -18,25 +18,73 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 // mathlib.h
+#pragma once
 
-typedef float vec_t;
-typedef vec_t vec2_t[2];
-typedef vec_t vec3_t[3];
-typedef vec_t vec4_t[4];
-typedef vec_t vec5_t[5];
+typedef float  vec_t;
+typedef int   ivec_t;
 
-typedef int ivec_t;
-typedef ivec_t ivec2_t[2];
-typedef ivec_t ivec3_t[3];
-typedef ivec_t ivec4_t[4];
-typedef ivec_t ivec5_t[5];
+enum
+{
+	FTE_ALIGN_UNKNOWN = -1,
+	FTE_ALIGN_DEFAULT =  0 << 0,
+	FTE_ALIGN_SCALAR  =  1 << 0,
+	FTE_ALIGN_VECTOR  =  1 << 1,
+	FTE_ALIGN_MATRIX  =  1 << 2,
+	FTE_ALIGN_TENSOR  =  1 << 3,
+	FTE_ALIGN_ROTOR   =  1 << 4,
+	FTE_ALIGN_MOTOR   =  1 << 5,
+};
 
-/*16-byte aligned vectors, for auto-vectorising, should propogate to structs
-sse and altivec can unroll loops using aligned reads, which should be faster... 4 at once.
-*/
-typedef FTE_ALIGN(16) vec3_t avec3_t;
-typedef FTE_ALIGN(16) vec4_t avec4_t;
-typedef FTE_ALIGN(4) qbyte byte_vec4_t[4];
+/* define different array types */
+#pragma pack(push,1)
+#define     arr(T,N) typeof(T[N]) /* fixed static array of arbitrary length and type */
+#pragma pack(pop)
+
+#pragma pack(push,1)
+#define     vla(T  ) typeof(T[ ]) /* variable length array - VLA */
+#pragma pack(pop)
+
+#pragma pack(push,1)
+/* define vector extension power of 2 sized SIMD vector types for non MSVC */
+#ifndef _MSC_VER
+#ifdef __clang__
+#define vec_ext(T,N) typeof(T __attribute__((ext_vector_type(N))))
+#else
+#define vec_ext(T,N) typeof(T __attribute__((vector_size(FTE_BITCEIL((alignof(T) * N))))))
+#endif
+#endif
+#pragma pack(pop)
+
+#pragma pack(push,1)
+#define avec(T,N,A) \
+	FTE_ALIGN(((N * sizeof(T) == FTE_BITCEIL(N * sizeof(T)) && (A != FTE_ALIGN_SCALAR)) \
+	|| (A  > FTE_ALIGN_SCALAR) ? FTE_BITCEIL(N) : 1) * fte_alignof(T[0])) \
+arr(T,((N * sizeof(T) == FTE_BITCEIL(N * sizeof(T))) || (A > FTE_ALIGN_SCALAR) ? FTE_BITCEIL(N) : N))
+#pragma pack(pop)
+
+#define vec(T,N) avec(T,N,FTE_ALIGN_DEFAULT)
+
+typedef vec ( vec_t,2)                    vec2_t;
+typedef vec ( vec_t,3)                    vec3_t;
+typedef avec( vec_t,3,FTE_ALIGN_VECTOR)  avec3_t;
+typedef vec ( vec_t,4)                    vec4_t;
+typedef avec( vec_t,4,FTE_ALIGN_VECTOR)  avec4_t;
+typedef vec ( vec_t,5)                    vec5_t;
+typedef vec ( vec_t,6)                    vec6_t;
+typedef vec ( vec_t,7)                    vec7_t;
+typedef vec ( vec_t,8)                    vec8_t;
+
+typedef vec (ivec_t,2)                   ivec2_t;
+typedef vec (ivec_t,3)                   ivec3_t;
+typedef avec(ivec_t,3,FTE_ALIGN_VECTOR) iavec3_t;
+typedef vec (ivec_t,4)                   ivec4_t;
+typedef avec(ivec_t,4,FTE_ALIGN_VECTOR) iavec4_t;
+typedef vec (ivec_t,5)                   ivec5_t;
+typedef vec (ivec_t,6)                   ivec6_t;
+typedef vec (ivec_t,7)                   ivec7_t;
+typedef vec (ivec_t,8)                   ivec8_t;
+
+typedef vec ( qbyte,4)               byte_vec4_t;
 
 //VECV_STRIDE is used only as an argument for opengl.
 #ifdef FTE_TARGET_WEB

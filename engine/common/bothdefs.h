@@ -730,24 +730,63 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define fte_restrict
 #endif
 
+#define BITOP_RUP01__(x) (             (x) | (             (x) >>  1))
+#define BITOP_RUP02__(x) (BITOP_RUP01__(x) | (BITOP_RUP01__(x) >>  2))
+#define BITOP_RUP04__(x) (BITOP_RUP02__(x) | (BITOP_RUP02__(x) >>  4))
+#define BITOP_RUP08__(x) (BITOP_RUP04__(x) | (BITOP_RUP04__(x) >>  8))
+#define BITOP_RUP16__(x) (BITOP_RUP08__(x) | (BITOP_RUP08__(x) >> 16))
+
+#define BITOP_LOG2__(x) (((((x) & 0xffff0000) != 0) << 4) \
+                        |((((x) & 0xff00ff00) != 0) << 3) \
+                        |((((x) & 0xf0f0f0f0) != 0) << 2) \
+                        |((((x) & 0xcccccccc) != 0) << 1) \
+                        |((((x) & 0xaaaaaaaa) != 0) << 0))
+
+#define FTE_BITCEIL(x) (const uint32_t)(BITOP_RUP16__(((uint32_t)(x)) - 1) + 1)
+#define FTE_LOG2(x)    (const uint32_t)(BITOP_LOG2__(FTE_BITCEIL(x)))
+
+/* fte_alignof(type) - get alignment of type */
+#if __STDC_VERSION__ >= 201112L
+	#include <stdalign.h>
+	#define fte_alignof(type) alignof(type)
+#elif _MSC_VER
+	#define fte_alignof(type) __alignof(type)
+#else
+	#define fte_alignof(type) sizeof(type)
+#endif
+
+/* FTE_ALIGN(a) - align to FTE_BITCEIL(a) */
 #if _MSC_VER >= 1300
-	#define FTE_ALIGN(a) __declspec(align(a))
+	#define FTE_ALIGN(a) __declspec(align(FTE_BITCEIL(a)))
 #elif defined(__clang__)
 	#define FTE_ALIGN(a) __attribute__((aligned(a)))
 #elif __GNUC__ >= 3
-	#define FTE_ALIGN(a) __attribute__((aligned(a)))
+	#define FTE_ALIGN(a) __attribute__((aligned(FTE_BITCEIL(a))))
 #else
 	#define FTE_ALIGN(a)
 #endif
 
-#if __STDC_VERSION__ >= 201112L
-	#include <stdalign.h>
-	#define fte_alignof(type) alignof(qintptr_t)
-#elif _MSC_VER
-	#define fte_alignof(type) __alignof(qintptr_t)
-#else
-	#define fte_alignof(type) sizeof(qintptr_t)
-#endif
+/* expand for permute */
+#define PARENS ()
+#define FTE_EXPAND(...) FTE_EXPAND4(FTE_EXPAND4(FTE_EXPAND4(FTE_EXPAND4(__VA_ARGS__))))
+#define FTE_EXPAND4(...) FTE_EXPAND3(FTE_EXPAND3(FTE_EXPAND3(FTE_EXPAND3(__VA_ARGS__))))
+#define FTE_EXPAND3(...) FTE_EXPAND2(FTE_EXPAND2(FTE_EXPAND2(FTE_EXPAND2(__VA_ARGS__))))
+#define FTE_EXPAND2(...) FTE_EXPAND1(FTE_EXPAND1(FTE_EXPAND1(FTE_EXPAND1(__VA_ARGS__))))
+#define FTE_EXPAND1(...) __VA_ARGS__
+
+/* define array verification and element count */
+#define fte_isarray(a  ) __builtin_choose_expr(__builtin_types_compatible_p(typeof((a)[0]) [], typeof((a))), true, false)
+#undef  fte_countof
+#define fte_countof(a  ) (sizeof((a))/sizeof((a)[0]))
+
+/* define variable argument macros */
+#define FTE_ARGSCOUNT(...) (0 __VA_OPT__(+sizeof((typeof(__VA_ARGS__)[]){__VA_ARGS__})/sizeof(__VA_ARGS__)))
+#define FTE_ARGSEMPTY(...) (true __VA_OPT__(-1))
+
+/* fte_perm(a,...) - permute array or vector */
+#define fte_perm(a,...)          { __VA_OPT__(FTE_EXPAND(fte_perm_helper(a,__VA_ARGS__))) }
+#define fte_perm_helper(a,i,...) (a)[i], __VA_OPT__(fte_perm_again PARENS (a,__VA_ARGS__))
+#define fte_perm_again()         fte_perm_helper
 
 //WARNING: FTE_CONSTRUCTOR things are unordered.
 #ifdef __cplusplus

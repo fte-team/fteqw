@@ -27,9 +27,6 @@ quakec/menu.lno
 compile_commands.json
 .cache/
 
-#for qtcreator users.
-CMakeLists.txt.user
-
 # android target has a load of debris
 engine/droid/bin/
 engine/droid/gen/
@@ -44,3 +41,41 @@ engine/droid/project.properties
 
 # Flatpak build artifacts
 .flatpak-builder
+
+#for qtcreator users.
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+
+#data
+csaddon.dat
+csaddon.lno
+csaddon.pk3
+fteplug_cod.so
+fteplug_ezhud.so
+fteplug_ffmpeg.so
+fteplug_hl2.so
+fteplug_irc.so
+fteplug_models.so
+fteplug_qi.so
+fteplug_quake3.so
+fteplug_xmpp.so
+menu.dat
+menu.lno
+menusys.pk3
+#binaries
+ftemaster
+fteqcc
+fteqw
+fteqw-sv
+fteqw.pot
+httpserver
+imgtool
+iqmtool
+qtv
+installed.lst
+qi.cfg
+

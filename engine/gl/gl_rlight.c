@@ -3188,7 +3188,7 @@ static void BSPX_LightGridValue(void *lightgridinfo, const vec3_t point, vec3_t 
 		w =	((i&1)?frac[0]:1-frac[0])	//keep the lerping vaugely smooth.
 		  * ((i&2)?frac[1]:1-frac[1])
 		  * ((i&4)?frac[2]:1-frac[2]);
-		s += w*BSPX_LightGridSingleValue(grid,	tile[0]+!!(i&1),
+		s += BSPX_LightGridSingleValue(grid,	tile[0]+!!(i&1),
 												tile[1]+!!(i&2),
 												tile[2]+!!(i&4), w, res_diffuse);
 	}

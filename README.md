@@ -33,7 +33,7 @@ Contributions and help is always welcomed.
 
 - Be kind and respectful
 - We follow [Gentoo's AI policy](https://wiki.gentoo.org/wiki/Project:Council/AI_policy), **_It is expressly forbidden to contribute any content that has been created with the assistance of Natural Language Processing artificial intelligence tools. This motion can be revisited, should a case been made over such a tool that does not pose copyright, ethical and quality concerns._** IBM also has a [great page](https://www.ibm.com/docs/en/watsonx/saas?topic=ai-risk-atlas) listing the many risks with current language models
-- Engine contributions must be GPL2 licensed. Plugins may be under any other GPL-compatbile licenses
+- Engine contributions must be GPL2 licensed. Plugins may be under any other GPL-compatible licenses
 - This codebase follows [TRIPS copyright laws](https://en.wikipedia.org/wiki/TRIPS_Agreement)
 - Always give credit from other codebases and make sure licenses are compatible
 - Test your changes and ensure nothing else has been broken (games, plugins, formats, etc)

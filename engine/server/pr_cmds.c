@@ -13138,7 +13138,7 @@ void PR_DumpPlatform_f(void)
 
 		{"CSQC_Init",			"void(optional float apilevel, string enginename, float engineversion)", DP_CS, D("Arg list is shorter than FTE+QSS")},
 		{"CSQC_Shutdown",		"void()", DP_CS},
-		{"CSQC_InputEvent",		"float(float eventtype, float xscan, float ychar, optional float zdev)", DP_CS, D("Arg list is shorter than FTE+QSS")},
+		{"CSQC_InputEvent",		"float(float eventtype, float xscan, float ychar, optional float dev, optional float zroll)", DP_CS, D("Arg list is shorter than FTE+QSS")},
 		{"CSQC_UpdateView",		"void(float physicalwidth, float physicalheight, optional float notmenu)", DP_CS, D("width+height are misinterpreted as physical sizes rather than the more useful virtual sizes.")},
 		{"CSQC_ConsoleCommand",	"float(string cmd)", DP_CS},
 		{"pmove_org",			"vector", DP_CS},
@@ -13386,7 +13386,7 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_Parse_Damage",		"float(float save, float take, vector inflictororg)", CS, "Called as a result of player.dmg_save or player.dmg_take being set on the server.\nReturn true to completely inhibit the engine's colour shift and damage rolls, allowing you to do your own thing.\nYou can use punch_roll += (normalize(inflictororg-player.origin)*v_right)*(take+save)*autocvar_v_kickroll; as a modifier for the roll angle should the player be hit from the side, and slowly fade it away over time."},
 		{"CSQC_Parse_Print",		"void(string printmsg, float printlvl)", CS, "Gives the CSQC a chance to intercept sprint/bprint builtin calls. CSQC should filter by the client's current msg setting and then pass the message on to the print command, or handle them itself."},
 		{"CSQC_Parse_Event",		"void()", CS, "Called when the client receives an SVC_CGAMEPACKET. The csqc should read the data or call the error builtin if it does not recognise the message."},
-		{"CSQC_InputEvent",			"float(float evtype, float scanx, float chary, float devid)", CS, "Called whenever a key is pressed, the mouse is moved, etc. evtype will be one of the IE_* constants. The other arguments vary depending on the evtype. Key presses are not guarenteed to have both scan and unichar values set at the same time."},
+		{"CSQC_InputEvent",			"float(float evtype, float scanx, float chary, float devid, float rollz)", CS, "Called whenever a key is pressed, the mouse is moved, etc. evtype will be one of the IE_* constants. The other arguments vary depending on the evtype. Key presses are not guarenteed to have both scan and unichar values set at the same time."},
 		{"CSQC_Input_Frame",		"__used void()", CS, "Called just before each time clientcommandframe is updated. You can edit the input_* globals in order to apply your own player inputs within csqc, which may allow you a convienient way to pass certain info to ssqc."},
 		{"CSQC_RendererRestarted",	"void(string rendererdescription)", CS, "Called by the engine after the video was restarted. This serves to notify the CSQC that any render targets that it may have cached were purged, and will need to be regenerated."},
 		{"CSQC_GenerateMaterial",	"string(string shadername)", CS, "Returns the material text to use for the named material, for automatically importing foreign materials."},

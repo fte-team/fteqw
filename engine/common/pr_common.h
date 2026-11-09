@@ -1091,7 +1091,7 @@ enum
 	globalfunction(CSQC_Parse_SetAngles,	"float(vector angles, float isdelta)")	\
 	globalfunction(CSQC_PlayerInfoChanged,	"void(float playernum)")	\
 	globalfunction(CSQC_ServerInfoChanged,	"void()")	\
-	globalfunction(CSQC_InputEvent,			"float(float evtype, float scanx, float chary, float devid)")	\
+	globalfunction(CSQC_InputEvent,			"float(float evtype, float scanx, float chary, float devid, float rollz)")	\
 	globalfunction(CSQC_Input_Frame,		"void()")/*EXT_CSQC_1*/	\
 	globalfunction(CSQC_RendererRestarted,	"void(string rendererdescription)")	\
 	globalfunction(CSQC_GenerateMaterial,	"string(string shadername)")	\

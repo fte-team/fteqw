@@ -9091,7 +9091,7 @@ qboolean CSQC_JoystickAxis(int axis, float value, unsigned int devid)
 	return G_FLOAT(OFS_RETURN);
 }
 
-qboolean CSQC_Accelerometer(float x, float y, float z)
+qboolean CSQC_Accelerometer(float x, float y, float z, unsigned int devid)
 {
 	void *pr_globals;
 	if (!csqcprogs || !csqcg.CSQC_InputEvent || CSIE_ACCELEROMETER >= dpcompat_csqcinputeventtypes.ival)
@@ -9101,11 +9101,12 @@ qboolean CSQC_Accelerometer(float x, float y, float z)
 	G_FLOAT(OFS_PARM0) = CSIE_ACCELEROMETER;
 	G_FLOAT(OFS_PARM1) = x;
 	G_FLOAT(OFS_PARM2) = y;
-	G_FLOAT(OFS_PARM3) = z;
+	G_FLOAT(OFS_PARM3) = devid;
+	G_FLOAT(OFS_PARM4) = z;
 	PR_ExecuteProgram (csqcprogs, csqcg.CSQC_InputEvent);
 	return G_FLOAT(OFS_RETURN);
 }
-qboolean CSQC_Gyroscope(float x, float y, float z)
+qboolean CSQC_Gyroscope(float x, float y, float z, unsigned int devid)
 {
 	void *pr_globals;
 	if (!csqcprogs || !csqcg.CSQC_InputEvent || CSIE_GYROSCOPE >= dpcompat_csqcinputeventtypes.ival)
@@ -9115,7 +9116,8 @@ qboolean CSQC_Gyroscope(float x, float y, float z)
 	G_FLOAT(OFS_PARM0) = CSIE_GYROSCOPE;
 	G_FLOAT(OFS_PARM1) = x;
 	G_FLOAT(OFS_PARM2) = y;
-	G_FLOAT(OFS_PARM3) = z;
+	G_FLOAT(OFS_PARM3) = devid;
+	G_FLOAT(OFS_PARM4) = z;
 	PR_ExecuteProgram (csqcprogs, csqcg.CSQC_InputEvent);
 	return G_FLOAT(OFS_RETURN);
 }

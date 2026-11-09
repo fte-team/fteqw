@@ -614,12 +614,12 @@ void IN_Commands(void)
 			//left: y= -9.8
 			//up:   z= +9.8
 #ifdef CSQC_DAT
-			CSQC_Accelerometer(ev->accel.x, ev->accel.y, ev->accel.z);
+			CSQC_Accelerometer(ev->accel.x, ev->accel.y, ev->accel.z, ev->devid);
 #endif
 			break;
 		case IEV_GYROSCOPE:
 #ifdef CSQC_DAT
-			CSQC_Gyroscope(ev->gyro.pitch * 180.0/M_PI, ev->gyro.yaw * 180.0/M_PI, ev->gyro.roll * 180.0/M_PI);
+			CSQC_Gyroscope(ev->gyro.pitch * 180.0/M_PI, ev->gyro.yaw * 180.0/M_PI, ev->gyro.roll * 180.0/M_PI, ev->devid);
 #endif
 			break;
 		}

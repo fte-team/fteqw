@@ -1066,6 +1066,19 @@ IF(FTE_PLUG_COD)
 	EMBED_PLUGIN_META(cod "CoD Formats" "Provides compatability with Call Of Duty's file formats.")
 ENDIF()
 
+SET(FTE_PLUG_NARBDROP true CACHE BOOL "Compile Narbacular Drop plugin.")
+IF(FTE_PLUG_NARBDROP)
+	ADD_LIBRARY(plug_narbdrop MODULE
+		plugins/narbdrop/fs_ore.c
+		plugins/narbdrop/mod_cmf.c
+		plugins/narbdrop/narbdrop.c
+		plugins/plugin.c
+	)
+	SET_TARGET_PROPERTIES(plug_narbdrop PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};FTEPLUGIN;MULTITHREAD")
+	TARGET_LINK_LIBRARIES(plug_narbdrop ${SYS_LIBS})
+	EMBED_PLUGIN_META(narbdrop "NarbDrop Formats" "Provides support for various formats used by Narbacular Drop.")
+ENDIF()
+
 FILE(STRINGS "${FTE_BUILD_CONFIG}" BULLET_INTERNAL REGEX "^#define[\t ]+USE_INTERNAL_BULLET")
 IF(BULLET_INTERNAL)
 	#Built-in bullet physics plugin...

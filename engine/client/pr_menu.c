@@ -2273,6 +2273,8 @@ static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, e
 		out->flags |= RF_ADDITIVE;
 	if (rflags & CSQCRF_DEPTHHACK)
 		out->flags |= RF_DEPTHHACK;
+	if (rflags & CSQCRF_XFLIP)
+		out->flags |= RF_XFLIP;
 
 	if (out->model)
 		return true;

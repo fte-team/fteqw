@@ -793,6 +793,8 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *fte_restrict in, entity_t *ft
 		if (rflags & CSQCRF_NOSHADOW)
 			out->flags |= RF_NOSHADOW;
 		//CSQCRF_FRAMETIMESARESTARTTIMES is handled by cs_getframestate below
+		if (rflags & CSQCRF_XFLIP)
+			out->flags |= RF_XFLIP;
 
 //		if (rflags & CSQCRF_REMOVED)
 //			Con_Printf("Warning: CSQCRF_NOAUTOADD is no longer supported\n");

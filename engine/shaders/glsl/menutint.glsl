@@ -1,6 +1,7 @@
 !!cvari r_menutint_inverse
 !!cvard_srgb r_menutint
 !!samps 1
+!!cvardf gl_stipplealpha_menu=0
 
 #ifdef VERTEX_SHADER
 		attribute vec2 v_texcoord;
@@ -26,6 +27,30 @@
 			texcolor = vec3(luminance, luminance, luminance);
 			texcolor *= r_menutint;
 			texcolor = (cvar_r_menutint_inverse > 0) ? (invertvec - texcolor) : texcolor;
+
+			/*  WinQuake-like stipple, by eukara */
+			#if gl_stipplealpha_menu==1
+			float alpha = 0.5;
+			int x = int(mod(gl_FragCoord.x, 2.0));
+			int y = int(mod(gl_FragCoord.y, 2.0));
+
+			if (alpha <= 0.0) {
+					discard;
+			} else if (alpha <= 0.25) {
+				if (x + y == 2)
+					discard;
+				if (x + y == 1)
+					discard;
+			} else if (alpha <= 0.5) {
+				if (x + y == 2)
+					discard;
+				if (x + y == 0)
+					discard;
+			} else if (alpha < 1.0) {
+				if (x + y == 2)
+					discard;
+			}
+			#endif
 			gl_FragColor = vec4(texcolor, 1.0);
 		}
 #endif

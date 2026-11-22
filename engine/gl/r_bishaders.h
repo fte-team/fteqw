@@ -8427,6 +8427,81 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 },
 #endif
 #ifdef GLQUAKE
+{QR_OPENGL, 110, "postproc_voodoo",
+    "!!samps screen=0\n"
+
+    /*  Emulates visual artifacts from video cards used by old mods and games, by eukara */
+
+    "#include \"sys/defs.h\"\n"
+    "varying vec2 texcoord;\n"
+
+    "#ifdef VERTEX_SHADER\n"
+    "void main()\n"
+    "{\n"
+    "texcoord = v_texcoord.xy;\n"
+    "texcoord.y = 1.0 - texcoord.y;\n"
+    "gl_Position = ftetransform();\n"
+    "}\n"
+    "#endif\n"
+
+    "#ifdef FRAGMENT_SHADER\n"
+    "uniform vec2 e_sourcesize;\n"
+
+    "vec3 p_dither(vec3 col)\n"
+    "{\n"
+    "float neighbour1 = mod(gl_FragCoord.x,  1.0) * 0.05;\n"
+    "float neighbour2 = mod(-gl_FragCoord.x, 2.0) * 0.05;\n"
+    "float neighbour3 = mod(gl_FragCoord.y,  1.0) * 0.05;\n"
+    "float neighbour4 = mod(-gl_FragCoord.y, 2.0) * 0.05;\n"
+    "float apprx = 0.945 - neighbour1 + neighbour2 + neighbour3 + neighbour4;\n"
+
+    "col.r = pow(col.r, 1.0 / apprx);\n"
+    "col.g = pow(col.g, 1.0 / apprx);\n"
+    "col.b = pow(col.b, 1.0 / apprx);\n"
+    "return col.rgb;\n"
+    "}\n"
+    "vec3 p_gamma(vec3 col)\n"
+    "{\n"
+    "float gammaed = 0.11;\n"
+    "float linegamma = gammaed;\n"
+    "float coord = 1.0 - texcoord.y\n"
+    ";\n"
+
+    "float lines = mod(gl_FragCoord.y, 2.0);\n"
+
+    "if (lines < 1.0) {\n"
+    "linegamma = 0.0;\n"
+    "}\n"
+
+    "float gamma = 1.3 - gammaed + linegamma;\n"
+
+    "col.r = pow(col.r, 1.0 / gamma);\n"
+    "col.g = pow(col.g, 1.0 / gamma);\n"
+    "col.b = pow(col.b, 1.0 / gamma);\n"
+    "return col;\n"
+    "}\n"
+
+    "void main(void)\n"
+    "{\n"
+    "vec3 col = texture2D(s_screen, floor(texcoord.xy * e_sourcesize)/e_sourcesize).rgb;\n"
+
+    /* Slow and messy, combine into one call */
+    "col = p_gamma(col);\n"
+    "col = p_gamma(col);\n"
+    "col = mix(col, p_gamma(col), 0.25);\n"
+
+    /* Dither comes last */
+    "col = p_dither(col);\n"
+
+    /* 24 to 16 */
+    "col.rgb = floor(col.rgb * vec3(64,128,64))/vec3(64,128,64);\n"
+
+    "gl_FragColor = vec4(col, 1.0);\n"
+    "}\n"
+    "#endif\n"
+},
+#endif
+#ifdef GLQUAKE
 {QR_OPENGL, 110, "fxaa",
 "!!samps 1\n"
 "#include \"sys/defs.h\"\n"
@@ -9001,6 +9076,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvari r_menutint_inverse\n"
 "!!cvard_srgb r_menutint\n"
 "!!samps 1\n"
+"!!cvardf gl_stipplealpha_menu=0\n"
 
 "#ifdef VERTEX_SHADER\n"
 "attribute vec2 v_texcoord;\n"
@@ -9026,6 +9102,30 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "texcolor = vec3(luminance, luminance, luminance);\n"
 "texcolor *= r_menutint;\n"
 "texcolor = (cvar_r_menutint_inverse > 0) ? (invertvec - texcolor) : texcolor;\n"
+
+/*  WinQuake-like stipple, by eukara */
+"#if gl_stipplealpha_menu==1\n"
+"float alpha = 0.5;\n"
+"int x = int(mod(gl_FragCoord.x, 2.0));\n"
+"int y = int(mod(gl_FragCoord.y, 2.0));\n"
+
+"if (alpha <= 0.0) {\n"
+"discard;\n"
+"} else if (alpha <= 0.25) {\n"
+"if (x + y == 2)\n"
+"discard;\n"
+"if (x + y == 1)\n"
+"discard;\n"
+"} else if (alpha <= 0.5) {\n"
+"if (x + y == 2)\n"
+"discard;\n"
+"if (x + y == 0)\n"
+"discard;\n"
+"} else if (alpha < 1.0) {\n"
+"if (x + y == 2)\n"
+"discard;\n"
+"}\n"
+"#endif\n"
 "gl_FragColor = vec4(texcolor, 1.0);\n"
 "}\n"
 "#endif\n"

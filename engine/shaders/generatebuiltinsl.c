@@ -40,6 +40,7 @@ char shaders[][64] =
 	"postproc_equirectangular",
 	"postproc_panini",
 	"postproc_ascii",
+	"postproc_voodoo",
 	"fxaa",
 	"underwaterwarp",
 	"menutint",

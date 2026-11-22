@@ -33,6 +33,12 @@ we have two types of relay here.
 #include <string.h>
 #include <time.h>
 #include <zlib.h>
+#ifdef _MSC_VER
+#include <malloc.h>
+#ifndef alloca
+#define alloca _alloca
+#endif
+#endif
 
 #include "bsd_string.h"
 
@@ -441,7 +447,11 @@ static struct turnclient_s *TURN_Allocate(cluster_t *cluster, netadr_t *clientad
 	struct sockaddr *address;
 	struct sockaddr_in	address4;
 	struct sockaddr_in6	address6;
+#ifdef _WIN32
+	int addrlen;
+#else
 	socklen_t addrlen;
+#endif
 
 	unsigned long nonblocking = true;
 	unsigned long v6only = false;
@@ -491,7 +501,7 @@ static struct turnclient_s *TURN_Allocate(cluster_t *cluster, netadr_t *clientad
 
 #if defined(_WIN32) && defined(SO_EXCLUSIVEADDRUSE)
 	//win32 is so fucked up
-	setsockopt(newsocket, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&_true, sizeof(_true));
+	setsockopt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&nonblocking, sizeof(nonblocking));
 #endif
 
 	for (tries = 5; ; tries--)

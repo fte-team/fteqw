@@ -8,6 +8,8 @@ cmake_policy(SET CMP0063 NEW)
 
 PROJECT(FTEQuake)
 
+ADD_COMPILE_DEFINITIONS(FTE_CMAKE_BUILD=1)
+
 INCLUDE_DIRECTORIES(
 	engine/common
 	engine/client
@@ -173,8 +175,8 @@ IF(FTE_DEP_BZIP2)
 ENDIF()
 IF(BZIP2_FOUND)
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};AVAIL_BZLIB;BZLIB_STATIC)
-	SET(FTE_LIBS ${FTE_LIBS} bz2)
-	SET(FTESV_LIBS ${FTESV_LIBS} bz2)
+	SET(FTE_LIBS ${FTE_LIBS} ${BZIP2_LIBRARIES})
+	SET(FTESV_LIBS ${FTESV_LIBS} ${BZIP2_LIBRARIES})
 #	MESSAGE(STATUS "bzip2 library found. bz2-compressed pk3s will work for the price of extra bloat! yay!")
 ELSE()
 	MESSAGE(WARNING "bzip2 library NOT available. bz2-compressed pk3s will not be available, as if anyone cares.")
@@ -335,16 +337,20 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DFTE_LIBRARY_PATH=${CMAKE_INSTALL_FULL_LIBD
 FUNCTION(EMBED_PLUGIN_META PLUGNAME PLUGTITLE PLUGDESC)
 	SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES OUTPUT_NAME "${PLUGNAME}")
 	SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES PREFIX "fteplug_")
-	SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	IF(NOT WIN32)
+		SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	ENDIF()
 	SET(INSTALLTARGS ${INSTALLTARGS} "plug_${PLUGNAME}" PARENT_SCOPE)
-	#sadly we need to use a temp zip file, because otherwise zip insists on using zip64 extensions which breaks zip -A (as well as any attempts to read any files).
-	ADD_CUSTOM_COMMAND(
-		TARGET plug_${PLUGNAME} POST_BUILD
-		COMMAND /bin/echo -e "{\\n	package fteplug_${PLUGNAME}\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"${PLUGTITLE}\"\\n	gamedir \"\"\\n	desc \"${PLUGDESC}\"\\n}" | zip -q -9 -fz- $<TARGET_FILE:plug_${PLUGNAME}>.zip -
-		COMMAND cmake -E cat $<TARGET_FILE:plug_${PLUGNAME}>.zip >> "$<TARGET_FILE:plug_${PLUGNAME}>"
-		COMMAND zip -A "$<TARGET_FILE:plug_${PLUGNAME}>"
-		COMMAND cmake -E rm $<TARGET_FILE:plug_${PLUGNAME}>.zip
-		VERBATIM)
+	IF(NOT WIN32)
+		#sadly we need to use a temp zip file, because otherwise zip insists on using zip64 extensions which breaks zip -A (as well as any attempts to read any files).
+		ADD_CUSTOM_COMMAND(
+			TARGET plug_${PLUGNAME} POST_BUILD
+			COMMAND /bin/echo -e "{\\n	package fteplug_${PLUGNAME}\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"${PLUGTITLE}\"\\n	gamedir \"\"\\n	desc \"${PLUGDESC}\"\\n}" | zip -q -9 -fz- $<TARGET_FILE:plug_${PLUGNAME}>.zip -
+			COMMAND cmake -E cat $<TARGET_FILE:plug_${PLUGNAME}>.zip >> "$<TARGET_FILE:plug_${PLUGNAME}>"
+			COMMAND zip -A "$<TARGET_FILE:plug_${PLUGNAME}>"
+			COMMAND cmake -E rm $<TARGET_FILE:plug_${PLUGNAME}>.zip
+			VERBATIM)
+	ENDIF()
 ENDFUNCTION()
 
 SET(FTE_DEP_GNUTLS true CACHE BOOL "Link against gnutls")
@@ -1839,6 +1845,49 @@ ENDIF()
 
 SET(FTE_MENU_SYS true CACHE BOOL "Compile System Menu.")
 IF(FTE_MENU_SYS)
+	IF(WIN32)
+	ADD_CUSTOM_TARGET(menusys ALL
+		VERBATIM
+		DEPENDS fteqcc
+		WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/quakec/menusys/"
+		COMMAND fteqcc -srcfile "menu.src" -o "${CMAKE_CURRENT_BINARY_DIR}/menu.dat" -DREVISION="${SVNREVISION}" -DDATE="${FTE_DATE}" -DBRANCH="${FTE_BRANCH}"
+		BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/menu.dat" "${CMAKE_CURRENT_BINARY_DIR}/menu.lno"
+		SOURCES
+			quakec/menusys/menu.src
+			quakec/menusys/fteextensions.qc
+			quakec/menusys/menusys/mitems.qc
+			quakec/menusys/menusys/mitems_common.qc
+			quakec/menusys/menusys/mitem_frame.qc
+			quakec/menusys/menusys/mitem_desktop.qc
+			quakec/menusys/menusys/mitem_exmenu.qc
+			quakec/menusys/menusys/mitem_edittext.qc
+			quakec/menusys/menusys/mitem_tabs.qc
+			quakec/menusys/menusys/mitem_colours.qc
+			quakec/menusys/menusys/mitem_checkbox.qc
+			quakec/menusys/menusys/mitem_slider.qc
+			quakec/menusys/menusys/mitem_combo.qc
+			quakec/menusys/menusys/mitem_bind.qc
+			quakec/menusys/menusys/mitem_spinnymodel.qc
+			quakec/menusys/menu/loadsave.qc
+			quakec/menusys/menu/newgame.qc
+			quakec/menusys/menu/options_basic.qc
+			quakec/menusys/menu/options_effects.qc
+			quakec/menusys/menu/options_keys.qc
+			quakec/menusys/menu/options.qc
+			quakec/menusys/menu/presets.qc
+			quakec/menusys/menu/servers.qc
+			quakec/menusys/menu/main.qc
+			quakec/menusys/menu/mods.qc
+			quakec/menusys/menu/cvars.qc
+			quakec/menusys/menu/updates.qc
+			quakec/menusys/menu/options_audio.qc
+			quakec/menusys/menu/options_configs.qc
+			quakec/menusys/menu/options_hud.qc
+			quakec/menusys/menu/options_particles.qc
+			quakec/menusys/menu/options_video.qc
+			quakec/menusys/menu/quit.qc
+	)
+	ELSE()
 	ADD_CUSTOM_TARGET(menusys ALL
 		VERBATIM
 		DEPENDS fteqcc
@@ -1881,6 +1930,7 @@ IF(FTE_MENU_SYS)
 			quakec/menusys/menu/options_video.qc
 			quakec/menusys/menu/quit.qc
 	)
+	ENDIF()
 
 	INSTALL(FILES
 		${CMAKE_CURRENT_BINARY_DIR}/menusys.pk3
@@ -1889,6 +1939,35 @@ ENDIF()
 
 SET(FTE_CSADDON true CACHE BOOL "CS Addon.")
 IF(FTE_CSADDON)
+	IF(WIN32)
+	ADD_CUSTOM_TARGET(csaddon ALL
+		VERBATIM
+		DEPENDS fteqcc
+		WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/quakec/csaddon/src/"
+		COMMAND fteqcc -srcfile "csaddon.src" -o "${CMAKE_CURRENT_BINARY_DIR}/csaddon.dat"
+		BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/csaddon.dat" "${CMAKE_CURRENT_BINARY_DIR}/csaddon.lno"
+		SOURCES
+			quakec/csaddon/src/csaddon.src
+
+			quakec/csaddon/src/csplat.qc
+			quakec/csaddon/src/csfixups.qc
+
+			quakec/csaddon/src/editor_lights.qc
+			quakec/csaddon/src/editor_terrain.qc
+			quakec/csaddon/src/brush_selection.qc
+			quakec/csaddon/src/brush_history.qc
+			quakec/csaddon/src/brush_manip.qc
+			quakec/csaddon/src/brush_draw.qc
+			quakec/csaddon/src/brush_vertedit.qc
+			quakec/csaddon/src/editor_brushes.qc
+			quakec/csaddon/src/editor_ents.qc
+			quakec/csaddon/src/textfield.qc
+			quakec/csaddon/src/editor_particles.qc
+			quakec/csaddon/src/menu.qc
+			quakec/csaddon/src/cam.qc
+			quakec/csaddon/src/csaddon.qc
+	)
+	ELSE()
 	ADD_CUSTOM_TARGET(csaddon ALL
 		VERBATIM
 		DEPENDS fteqcc
@@ -1917,6 +1996,7 @@ IF(FTE_CSADDON)
 			quakec/csaddon/src/cam.qc
 			quakec/csaddon/src/csaddon.qc
 	)
+	ENDIF()
 
 	INSTALL(FILES
 		${CMAKE_CURRENT_BINARY_DIR}/csaddon.pk3

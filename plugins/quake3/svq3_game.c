@@ -103,6 +103,48 @@ static const char *mapentspointer;
 #define clamp(v,min,max) v = (v>max)?max:((v < min)?min:v)
 #define Q_rint(x) (int)((x > 0)?(x + 0.5f):(x-0.5f))
 
+void PerpendicularVector(vec3_t dst, const vec3_t src)
+{
+	vec3_t temp;
+	vec_t len2;
+	vec_t d;
+	int i;
+	int pos = 0;
+	vec_t minelem = 1.0f;
+
+	for (i = 0; i < 3; i++)
+	{
+		vec_t elem = (vec_t)fabs(src[i]);
+		temp[i] = 0;
+		if (elem < minelem)
+		{
+			minelem = elem;
+			pos = i;
+		}
+	}
+
+	temp[pos] = 1.0f;
+	d = DotProduct(temp, src);
+	dst[0] = temp[0] - d * src[0];
+	dst[1] = temp[1] - d * src[1];
+	dst[2] = temp[2] - d * src[2];
+
+	len2 = DotProduct(dst, dst);
+	if (len2 > 0)
+	{
+		vec_t invlen = (vec_t)(1.0 / sqrt(len2));
+		dst[0] *= invlen;
+		dst[1] *= invlen;
+		dst[2] *= invlen;
+	}
+	else
+	{
+		dst[0] = 1;
+		dst[1] = 0;
+		dst[2] = 0;
+	}
+}
+
 
 
 // entity->svFlags

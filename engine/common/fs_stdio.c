@@ -4,6 +4,9 @@
 #if _POSIX_C_SOURCE >= 200112L
 #include <sys/stat.h>
 #endif
+#if defined(_WIN32) && defined(WEBSVONLY)
+#include <direct.h>
+#endif
 
 #if !defined(FTE_TARGET_WEB) && (!defined(_WIN32) || defined(WEBSVONLY))
 
@@ -14,6 +17,20 @@
 	#define fs_readonly true
 	#define FS_FlushFSHashFull()
 	int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t modtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath) {return 0;}
+	#ifdef _WIN32
+	void Sys_mkdir (const char *path)
+	{
+		_mkdir(path);
+	}
+	qboolean Sys_remove (const char *path)
+	{
+		return remove(path) == 0;
+	}
+	qboolean Sys_Rename (const char *oldfname, const char *newfname)
+	{
+		return rename(oldfname, newfname) == 0;
+	}
+	#endif
 #else
 	#if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT) || defined(_XBOX)
 		#define FSSTDIO_OpenPath VFSOS_OpenPath

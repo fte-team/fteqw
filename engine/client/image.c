@@ -1364,10 +1364,12 @@ qboolean WriteTGA(const char *filename, enum fs_relative fsroot, const qbyte *ft
 		#define LIBPNG_LOADED() 1
 		#define PSTATIC(n) = &n
 		#ifdef _MSC_VER
+			#ifndef FTE_CMAKE_BUILD
 			#ifdef _WIN64
 				#pragma comment(lib, MSVCLIBSPATH "libpng64.lib")
 			#else
 				#pragma comment(lib, MSVCLIBSPATH "libpng.lib")
+			#endif
 			#endif
 		#endif
 	#endif
@@ -2068,10 +2070,12 @@ err:
 	#define LIBJPEG_LOADED() (libjpeg_handle != NULL)
 #else
 	#ifdef _MSC_VER
+		#ifndef FTE_CMAKE_BUILD
 		#ifdef _WIN64
 			#pragma comment(lib, MSVCLIBSPATH "libjpeg64.lib")
 		#else
 			#pragma comment(lib, MSVCLIBSPATH "jpeg.lib")
+		#endif
 		#endif
 	#endif
 	#define JSTATIC(n) = &n

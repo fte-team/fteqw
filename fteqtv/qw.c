@@ -21,6 +21,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qtv.h"
 #include <string.h>
 #include <time.h>
+#ifdef _MSC_VER
+#include <malloc.h>
+#ifndef alloca
+#define alloca _alloca
+#endif
+#endif
 
 static const filename_t ConnectionlessModelList[] = {{""}, {"maps/start.bsp"}, {"progs/player.mdl"}, {""}};
 static const filename_t ConnectionlessSoundList[] = {{""}, {""}};

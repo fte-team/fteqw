@@ -1823,6 +1823,63 @@ static struct bihbox_s BIH_BuildNode (struct bihnode_s *node, struct bihnode_s *
 	return bounds;
 }
 
+static int BIH_RecurseBrushesFromNode(model_t *model, struct bihnode_s *node, void (*callback)(model_t *model, q2cbrush_t *brush, void *user), void *user)
+{
+	int i, numbrushes = 0;
+
+	if (!node)
+		return numbrushes;
+
+	switch (node->type)
+	{
+		case BIH_X:
+		case BIH_Y:
+		case BIH_Z:
+		{
+			for (i = 0; i < 2; i++)
+				numbrushes += BIH_RecurseBrushesFromNode(model, node + node->bihnode.firstchild + i, callback, user);
+			break;
+		}
+
+		case BIH_GROUP:
+		{
+			for (i = 0; i < node->group.numchildren; i++)
+				numbrushes += BIH_RecurseBrushesFromNode(model, node + node->group.firstchild + i, callback, user);
+			break;
+		}
+
+		case BIH_BRUSH:
+		{
+			if (callback)
+				callback(model, node->data.brush, user);
+			numbrushes++;
+			break;
+		}
+
+		default:
+		{
+			break;
+		}
+	}
+
+	// integer overflow
+	if (numbrushes < 0)
+	{
+		Con_DPrintf("BIH_RecurseBrushesFromNode: integer overflow\n");
+		return 0;
+	}
+
+	return numbrushes;
+}
+
+static int BIH_EnumerateBrushes(model_t *model, void (*callback)(model_t *model, q2cbrush_t *brush, void *user), void *user)
+{
+	if (!model)
+		return 0;
+
+	return BIH_RecurseBrushesFromNode(model, (struct bihnode_s *)model->cnodes, callback, user);
+}
+
 void BIH_Build (model_t *mod, struct bihleaf_s *leafs, size_t numleafs)
 {
 	size_t numnodes;
@@ -1849,6 +1906,7 @@ void BIH_Build (model_t *mod, struct bihleaf_s *leafs, size_t numleafs)
 	mod->funcs.NativeTrace			= BIH_Trace;
 	mod->funcs.PointContents		= BIH_PointContents;
 	mod->funcs.NativeContents		= BIH_NativeContents;
+	mod->funcs.EnumerateBrushes		= BIH_EnumerateBrushes;
 }
 #ifdef SKELETALMODELS
 void BIH_BuildAlias (model_t *mod, galiasinfo_t *meshes)

@@ -96,7 +96,7 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define CON_ERROR   "^&C0"
 #define CON_NOTICE  "^&-1"
 #if defined(_DEBUG) || defined(FTE_TARGET_WEB)/*urgh...*/
-#define CON_DEBUG	CON_WARNING __FILE__":"STRINGIFY(__LINE__)" "
+#define CON_DEBUG	CON_WARNING __FILE__ ":" STRINGIFY(__LINE__) " "
 #endif
 
 #define isextendedcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || x == '-')

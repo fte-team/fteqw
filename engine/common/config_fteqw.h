@@ -141,6 +141,7 @@
 #define ENGINE_ROUTING		//Engine-provided routing logic (possibly threaded)
 //#define USE_INTERNAL_BULLET	//Statically link against bullet physics plugin (instead of using an external plugin)
 //#define USE_INTERNAL_ODE		//Statically link against ode physics plugin (instead of using an external plugin)
+//#define USE_INTERNAL_JOLT		//Statically link against jolt physics plugin (instead of using an external plugin)
 
 // Networking options
 #define NQPROT					//act as an nq client/server, with nq gamecode.

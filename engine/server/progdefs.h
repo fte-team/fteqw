@@ -295,17 +295,18 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldvector(gravitydir,"Specifies the direction in which gravity acts. Must be normalised. '0 0 0' also means down. Use '0 0 1' if you want the player to be able to run on ceilings.")\
 	comfieldfunction(camera_transform,".vector(vector org, vector ang)", "A callback that provides portal transform information for portal surfaces attached to this entity. Also used to open up pvs in ssqc.")\
 	comfieldfloat(pmove_flags,NULL)/*EXT_CSQC_1*/\
-	comfieldfloat(geomtype,NULL)/*DP_...PHYSICS*/\
-	comfieldfloat(friction,NULL)/*DP_...PHYSICS*/\
-	comfieldfloat(erp,NULL)/*DP_...PHYSICS*/\
-	comfieldfloat(jointtype,NULL)/*DP_...PHYSICS*/\
-	comfieldfloat(mass,NULL)/*DP_...PHYSICS*/\
+	comfieldfloat(geomtype,"Physics geometry type, specified by the GEOMTYPE_* constants, with dimensions calculated from the entity's mins/maxs fields. Only useful with a physics engine plugin active.")/*DP_...PHYSICS*/\
+	comfieldfloat(friction,"Slide friction for this entity, with 1 being default. Usually only useful with a physics engine plugin active. Beware reusing this field.")/*DP_...PHYSICS*/\
+	comfieldfloat(erp,"\"Error Reduction Parameter\", used by physics engine plugins to correct constraint simulation errors. Only useful with a physics engine plugin active.")/*DP_...PHYSICS*/\
+	comfieldfloat(jointtype,"Physics constraint type, specified by the JOINTTYPE_* constants, with the two constrained physics bodies specified by the .enemy and .aiment fields. Only useful with a physics engine plugin active.")/*DP_...PHYSICS*/\
+	comfieldfloat(mass,"Entity mass in kilograms.")/*DP_...PHYSICS*/\
 	comfieldfloat(bouncefactor,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(bouncestop,NULL)/*DP_...PHYSICS*/\
-	comfieldfloat(damp_linear,NULL)/*FTE_...PHYSICS*/\
-	comfieldfloat(damp_angular,NULL)/*FTE_...PHYSICS*/\
-	comfieldfloat(max_angular,NULL)/*FTE_...PHYSICS*/\
+	comfieldfloat(damp_linear,"Dampening force on linear acceleration. Only useful with a physics engine plugin active.")/*FTE_...PHYSICS*/\
+	comfieldfloat(damp_angular,"Dampening force on angular acceleration. Only useful with a physics engine plugin active.")/*FTE_...PHYSICS*/\
+	comfieldfloat(max_angular,"Maximum value for angular acceleration. Only useful with a physics engine plugin active.")/*FTE_...PHYSICS*/\
 	comfieldfloat(jointgroup,NULL)/*FTE_...PHYSICS*/\
+	comfieldfloat(alloweddof,"Allowed degrees of freedom flags, specified by the ALLOWEDDOF_* constants. Only useful with a physics engine plugin active.")/*FTE_...PHYSICS*/\
 	comfieldfloat(idealpitch,NULL)/*DP_QC_CHANGEPITCH (inconsistant naming)*/\
 	comfieldfloat(pitch_speed,NULL)/*DP_QC_CHANGEPITCH*/\
 	comextqcfieldshexen2	\
@@ -578,7 +579,12 @@ typedef struct
 	vec3_t velocity;
 	vec3_t angles;
 	vec3_t avelocity;
-	qboolean gravity;
+	float damp_linear;
+	float damp_angular;
+	float max_angular;
+	float gravity;
+	float friction;
+	float alloweddof;
 	int modelindex;
 	vec_t movelimit; // smallest component of (maxs[]-mins[])
 	float offsetmatrix[16];

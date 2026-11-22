@@ -13530,6 +13530,14 @@ void PR_DumpPlatform_f(void)
 		{"JOINTTYPE_UNIVERSAL",		"const float", QW|NQ|CS, NULL, JOINTTYPE_UNIVERSAL},
 		{"JOINTTYPE_HINGE2",		"const float", QW|NQ|CS, NULL, JOINTTYPE_HINGE2},
 
+		{"ALLOWEDDOF_ALL",			"const float", QW|NQ|CS, D("This rigidbody entity can move and rotate freely on all axes"), ALLOWEDDOF_ALL},
+		{"ALLOWEDDOF_MOVE_X",		"const float", QW|NQ|CS, D("This rigidbody entity can move in world space X axis"), ALLOWEDDOF_MOVE_X},
+		{"ALLOWEDDOF_MOVE_Y",		"const float", QW|NQ|CS, D("This rigidbody entity can move in world space Y axis"), ALLOWEDDOF_MOVE_Y},
+		{"ALLOWEDDOF_MOVE_Z",		"const float", QW|NQ|CS, D("This rigidbody entity can move in world space Z axis"), ALLOWEDDOF_MOVE_Z},
+		{"ALLOWEDDOF_ROTATE_X",		"const float", QW|NQ|CS, D("This rigidbody entity can rotate around world space X axis"), ALLOWEDDOF_ROTATE_X},
+		{"ALLOWEDDOF_ROTATE_Y",		"const float", QW|NQ|CS, D("This rigidbody entity can rotate around world space Y axis"), ALLOWEDDOF_ROTATE_Y},
+		{"ALLOWEDDOF_ROTATE_Z",		"const float", QW|NQ|CS, D("This rigidbody entity can rotate around world space Z axis"), ALLOWEDDOF_ROTATE_Z},
+
 		{"GE_MAXENTS",		"const float", CS, "Valid for getentity, ignores the entity argument. Returns the maximum number of entities which may be valid, to avoid having to poll 65k when only 100 are used.", GE_MAXENTS},
 		{"GE_ACTIVE",		"const float", CS, "Valid for getentity. Returns whether this entity is known to the client or not.", GE_ACTIVE},
 		{"GE_ORIGIN",		"const float", CS, "Valid for getentity. Returns the interpolated .origin.", GE_ORIGIN},

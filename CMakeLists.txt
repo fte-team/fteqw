@@ -1095,6 +1095,37 @@ ELSE()
 	ENDIF()
 ENDIF()
 
+#Jolt Physics library
+FILE(STRINGS "${FTE_BUILD_CONFIG}" JOLT_INTERNAL REGEX "^#define[\t ]+USE_INTERNAL_JOLT")
+IF(JOLT_INTERNAL)
+	# FIXME don't duplicate this
+	include(FetchContent)
+	FetchContent_Declare(JoltPhysics GIT_REPOSITORY "https://github.com/jrouwe/JoltPhysics" GIT_TAG "v5.5.0" SOURCE_SUBDIR "Build")
+	FetchContent_MakeAvailable(JoltPhysics)
+	SET(FTE_COMMON_FILES ${FTE_COMMON_FILES} plugins/jolt/jolt.cpp)
+	INCLUDE_DIRECTORIES( ${JoltPhysics_SOURCE_DIR}/.. )
+	SET(FTE_LIBS ${FTE_LIBS} Jolt)
+	SET(FTESV_LIBS ${FTESV_LIBS} Jolt)
+ELSE()
+	SET(FTE_PLUG_JOLT true CACHE BOOL "Compile Jolt rigid body physics plugin.")
+	IF(FTE_PLUG_JOLT)
+		# FIXME don't duplicate this
+		include(FetchContent)
+		FetchContent_Declare(JoltPhysics GIT_REPOSITORY "https://github.com/jrouwe/JoltPhysics" GIT_TAG "v5.5.0" SOURCE_SUBDIR "Build")
+		FetchContent_MakeAvailable(JoltPhysics)
+		ADD_LIBRARY(plug_jolt MODULE
+			plugins/plugin.c
+			plugins/jolt/jolt.cpp
+		)
+		SET_PROPERTY(TARGET Jolt PROPERTY POSITION_INDEPENDENT_CODE TRUE)
+		TARGET_INCLUDE_DIRECTORIES(plug_jolt PUBLIC ${JoltPhysics_SOURCE_DIR}/..)
+		SET_TARGET_PROPERTIES(plug_jolt PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+		TARGET_LINK_LIBRARIES(plug_jolt ${SYS_LIBS} Jolt)
+
+		EMBED_PLUGIN_META(jolt "Jolt Physics Plugin" "Provides Rigid Body Physics.")
+	ENDIF()
+ENDIF()
+
 #ODE Physics library plugin
 SET(FTE_PLUG_ODE true CACHE BOOL "Compile ODE rigid body physics plugin.")
 SET_PROPERTY(CACHE FTE_PLUG_ODE PROPERTY STRINGS false true static)

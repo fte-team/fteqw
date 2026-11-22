@@ -5964,6 +5964,9 @@ static void COM_Version_f (void)
 #ifdef USE_INTERNAL_BULLET
 	Con_Printf(" bullet");
 #endif
+#ifdef USE_INTERNAL_JOLT
+	Con_Printf(" jolt");
+#endif
 #ifdef ENGINE_ROUTING
 	Con_Printf(" routing");
 #endif

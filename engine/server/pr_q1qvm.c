@@ -2440,6 +2440,8 @@ qboolean PR_LoadQ1QVM(void)
 
 	svprogfuncs = &q1qvmprogfuncs;
 
+	svprogparms.user = &sv.world;
+	q1qvmprogfuncs.parms = &svprogparms;
 
 //	q1qvmprogfuncs.AddString = Q1QVMPF_AddString;	//using this breaks 64bit support, and is a 'bad plan' elsewhere too,
 	q1qvmprogfuncs.EdictNum = Q1QVMPF_EdictNum;

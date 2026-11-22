@@ -1800,6 +1800,12 @@ void Con_DrawNotify (void)
 {
 	extern int startuppending;
 	console_t *con;
+	int pnum;
+
+	for (pnum = 0; pnum < cl.splitclients; pnum++) {
+		if (cl.playerview[pnum].sb_showscores || cl.playerview[pnum].sb_showteamscores)
+			return;
+	}
 
 	if (con_main)
 	{

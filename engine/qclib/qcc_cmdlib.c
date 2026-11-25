@@ -266,16 +266,54 @@ int QC_strncasecmp (const char *s1, const char *s2, int n)
 	return -1;
 }
 
+//no length limit: see Q_strcasecmp (gcc 15+ riscv64 link failure).
 int QC_strcasecmp (const char *s1, const char *s2)
 {
-	return QC_strncasecmp(s1, s2, 0x7fffffff);
+	int             c1, c2;
+
+	do
+	{
+		c1 = *s1++;
+		c2 = *s2++;
+
+		if (c1 != c2)
+		{
+			if (c1 >= 'a' && c1 <= 'z')
+				c1 -= ('a' - 'A');
+			if (c2 >= 'a' && c2 <= 'z')
+				c2 -= ('a' - 'A');
+			if (c1 != c2)
+				return -1;              // strings not equal
+		}
+	} while (c1);
+
+	return 0;               // strings are equal
 }
 
 #else
 int QC_strncasecmp(const char *s1, const char *s2, int n);
+//no length limit: see Q_strcasecmp (gcc 15+ riscv64 link failure).
 int QC_strcasecmp (const char *s1, const char *s2)
 {
-	return QC_strncasecmp(s1, s2, 0x7fffffff);
+	int             c1, c2;
+
+	do
+	{
+		c1 = *s1++;
+		c2 = *s2++;
+
+		if (c1 != c2)
+		{
+			if (c1 >= 'a' && c1 <= 'z')
+				c1 -= ('a' - 'A');
+			if (c2 >= 'a' && c2 <= 'z')
+				c2 -= ('a' - 'A');
+			if (c1 != c2)
+				return -1;              // strings not equal
+		}
+	} while (c1);
+
+	return 0;               // strings are equal
 }
 
 #endif

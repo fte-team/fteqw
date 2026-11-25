@@ -388,13 +388,33 @@ int Q_strncasecmp (const char *s1, const char *s2, int n)
 	return -1;
 }
 
+//no length limit: passing 0x7fffffff to Q_strncasecmp lets gcc 15+ build a
+//"string constant + 0x7fffffff" end pointer, which does not link on riscv64.
 int Q_strcasecmp (const char *s1, const char *s2)
 {
-	return Q_strncasecmp (s1, s2, 0x7fffffff);
+	int		c1, c2;
+
+	do
+	{
+		c1 = *s1++;
+		c2 = *s2++;
+
+		if (c1 != c2)
+		{
+			if (c1 >= 'a' && c1 <= 'z')
+				c1 -= ('a' - 'A');
+			if (c2 >= 'a' && c2 <= 'z')
+				c2 -= ('a' - 'A');
+			if (c1 != c2)
+				return (c1 > c2)?1:-1;	// strings not equal
+		}
+	} while (c1);
+
+	return 0;		// strings are equal
 }
 int QDECL Q_stricmp (const char *s1, const char *s2)
 {
-	return Q_strncasecmp (s1, s2, 0x7fffffff);
+	return Q_strcasecmp (s1, s2);
 }
 int Q_strstopcasecmp(const char *s1start, const char *s1end, const char *s2)
 {	//safer version of strncasecmp, where s1 is the one with the length, and must exactly match s2 (which is null terminated and probably an immediate.
